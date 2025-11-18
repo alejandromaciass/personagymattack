@@ -1,0 +1,8 @@
+[providers]
+python = {}
+
+[build]
+buildCommand = "pip install -r requirements.txt"
+
+[start]
+cmd = "./start.sh"
