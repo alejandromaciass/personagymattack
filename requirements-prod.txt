@@ -1,4 +1,4 @@
-# PersonaGym-R AgentBeats Integration Requirements
+# PersonaGym-R Production Dependencies for Cloud Deployment
 
 # Core PersonaGym-R dependencies
 pydantic>=2.7
@@ -7,16 +7,16 @@ rich>=13.7
 numpy>=1.26
 scikit-learn>=1.5
 
-# Web server dependencies
-fastapi>=0.100
-uvicorn[standard]>=0.20
-httpx>=0.25
-
 # AgentBeats Controller (earthshaker)
 earthshaker
 
-# A2A Protocol Library
+# A2A Protocol Library  
 a2a-python
 
 # Additional utilities
 pyyaml>=6.0
+
+# FastAPI for green agent
+fastapi>=0.120.3
+uvicorn[standard]>=0.18.0
+httpx>=0.28.1

@@ -10,7 +10,7 @@ from .api_schema import (Goal, Observation, PersonaCard, Rubric, Score, SeedCfg,
 from .attacker.policy import AttackPolicy
 from .baselines.white_prompt_only import WhiteAgent as PromptAgent
 from .baselines.white_tool_user import WhiteAgent as ToolAgent
-from .baselines.local_model_agent import LocalModelAgent
+# from .baselines.local_model_agent import LocalModelAgent  # Optional dependency
 from .graders import breakdetect, compose, efficiency, persona, safety
 from .tools import io_bus
 
@@ -162,7 +162,8 @@ def run_task(
         elif white_name == "tool":
             white = ToolAgent(persona_data)
         elif white_name == "llm":
-            white = LocalModelAgent(persona_data, model_name="distilgpt2")
+            # white = LocalModelAgent(persona_data, model_name="distilgpt2")  # Optional dependency
+            raise ValueError("LocalModelAgent requires transformers - install with: pip install transformers torch")
         elif white_name == "openai":
             from .baselines.openai_model_agent import OpenAIModelAgent
             white = OpenAIModelAgent(persona_data, model_name="gpt-3.5-turbo")

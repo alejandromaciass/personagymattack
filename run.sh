@@ -22,5 +22,5 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# Run the A2A-based green agent
-python agentbeats/green_agent_a2a.py
+# Run the FastAPI-based green agent
+python agentbeats/green_agent.py

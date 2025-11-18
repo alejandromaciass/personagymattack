@@ -1,0 +1,14 @@
+nohup: ignoring input
+Found existing .ab/agents file from previous runs, cleaning up...
+INFO:     Started server process [20777]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8010 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60878 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60884 - "GET /agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55480 - "GET /agents/e17a34fb943644eaaa800a60c5a526cd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54344 - "GET /to_agent/e17a34fb943644eaaa800a60c5a526cd/.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     192.184.174.93:0 - "GET /.well-known/agent-card.json?id=db8091b5-c885-430d-a4cc-18c63d97a097&vscodeBrowserReqId=1763087282414 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55988 - "GET /to_agent/e17a34fb943644eaaa800a60c5a526cd/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36692 - "GET /to_agent/e17a34fb943644eaaa800a60c5a526cd/a2a/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60214 - "GET /status HTTP/1.1" 200 OK

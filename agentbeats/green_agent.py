@@ -343,6 +343,30 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "agent_type": "green", "version": "1.0.0"}
 
+@app.get("/.well-known/agent-card.json")
+async def get_agent_card_standard():
+    """Standard AgentBeats agent card endpoint."""
+    card = green_agent.get_agent_card()
+    return {
+        "name": card.name,
+        "version": card.version,
+        "description": card.description,
+        "capabilities": card.capabilities,
+        "agent_type": card.agent_type,
+        "protocol_version": card.protocol_version,
+        "endpoints": {
+            "agent_card": "/a2a/card",
+            "list_tasks": "/a2a/tasks",
+            "accept_task": "/a2a/task", 
+            "run_assessment": "/a2a/run",
+            "health_check": "/health"
+        },
+        "contact": {
+            "repository": "https://github.com/miayen7/personagymattack",
+            "maintainer": "PersonaGym-R Team"
+        }
+    }
+
 
 if __name__ == "__main__":
     # Configure logging
@@ -351,5 +375,10 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
+    # Get configuration from environment (set by earthshaker controller)
+    import os
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('AGENT_PORT', '8000'))
+    
     # Run the server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=host, port=port)
