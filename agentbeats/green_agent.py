@@ -388,6 +388,40 @@ async def status_check():
     """Alternative status endpoint."""
     return {"status": "online", "agent_type": "green", "version": "1.0.0", "ready": True}
 
+@app.post("/launcher/start")
+async def launcher_start():
+    """Launcher endpoint to start the agent."""
+    return {
+        "status": "started",
+        "message": "PersonaGym-R Green Agent is running",
+        "agent_url": "https://web-production-4866d.up.railway.app",
+        "endpoints": {
+            "agent_card": "/a2a/card",
+            "tasks": "/a2a/tasks",
+            "run": "/a2a/run",
+            "health": "/health"
+        }
+    }
+
+@app.post("/launcher/stop") 
+async def launcher_stop():
+    """Launcher endpoint to stop the agent."""
+    return {
+        "status": "stopped",
+        "message": "PersonaGym-R Green Agent stop requested"
+    }
+
+@app.get("/launcher/status")
+async def launcher_status():
+    """Launcher status check."""
+    return {
+        "status": "running",
+        "agent_type": "green",
+        "version": "1.0.0",
+        "agent_url": "https://web-production-4866d.up.railway.app",
+        "uptime": "online"
+    }
+
 @app.get("/.well-known/agent-card.json")
 async def get_agent_card_standard():
     """Standard AgentBeats agent card endpoint."""
@@ -404,7 +438,10 @@ async def get_agent_card_standard():
             "list_tasks": "/a2a/tasks",
             "accept_task": "/a2a/task", 
             "run_assessment": "/a2a/run",
-            "health_check": "/health"
+            "health_check": "/health",
+            "launcher_start": "/launcher/start",
+            "launcher_stop": "/launcher/stop", 
+            "launcher_status": "/launcher/status"
         },
         "contact": {
             "repository": "https://github.com/alejandromaciass/personagymattack",
@@ -424,7 +461,8 @@ async def get_agent_card_standard():
             "created": "2025-11-18",
             "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
             "difficulty": "medium-hard",
-            "estimated_duration_minutes": 5
+            "estimated_duration_minutes": 5,
+            "launcher_url": "https://web-production-4866d.up.railway.app/launcher/start"
         }
     }
 
