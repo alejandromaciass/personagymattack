@@ -463,6 +463,53 @@ async def agentbeats_validate_agent():
         "message": "Agent validation successful"
     }
 
+# IMPORTANT: Put specific endpoints BEFORE catchall routes
+@app.get("/.well-known/agent-card.json")
+async def get_agent_card_standard():
+    """Standard AgentBeats agent card endpoint."""
+    card = green_agent.get_agent_card()
+    return {
+        "name": card.name,
+        "version": card.version,
+        "description": card.description,
+        "capabilities": card.capabilities,
+        "agent_type": card.agent_type,
+        "protocol_version": card.protocol_version,
+        "url": card.url,
+        "endpoints": {
+            "agent_card": "/a2a/card",
+            "list_tasks": "/a2a/tasks",
+            "accept_task": "/a2a/task", 
+            "run_assessment": "/a2a/run",
+            "health_check": "/health",
+            "launcher_start": "/launcher/start",
+            "launcher_stop": "/launcher/stop", 
+            "launcher_status": "/launcher/status"
+        },
+        "contact": {
+            "repository": "https://github.com/alejandromaciass/personagymattack",
+            "maintainer": "PersonaGym-R Team"
+        },
+        "requirements": {
+            "min_agents": 1,
+            "max_agents": 10,
+            "supported_protocols": ["A2A-1.0"],
+            "resource_requirements": {
+                "memory_mb": 512,
+                "cpu_cores": 2,
+                "gpu": False
+            }
+        },
+        "metadata": {
+            "created": "2025-11-18",
+            "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
+            "difficulty": "medium-hard",
+            "estimated_duration_minutes": 5,
+            "launcher_url": "https://web-production-4866d.up.railway.app/launcher/start"
+        }
+    }
+
+# Catchall routes (these come AFTER specific routes)
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def catch_unknown_api_requests(request: Request, path: str):
     """Catch any API requests we haven't explicitly handled."""
@@ -502,10 +549,10 @@ async def catch_all_requests(request: Request, path: str):
     known_endpoints = [
         "", "health", "status", "a2a/card", "a2a/tasks", "a2a/task", "a2a/run",
         ".well-known/agent-card.json", "launcher/start", "launcher/stop", 
-        "launcher/status", "docs", "redoc", "openapi.json"
+        "launcher/status", "docs", "redoc", "openapi.json", "api", "agent-card"
     ]
     
-    if path not in known_endpoints:
+    if path not in known_endpoints and not path.startswith(".well-known/"):
         method = request.method
         url = str(request.url)
         
@@ -526,7 +573,9 @@ async def catch_all_requests(request: Request, path: str):
             ]
         }
     
-    # For known endpoints, return 404 normally
+    # For known endpoints, let them be handled by their specific handlers
+    # This will fall through to FastAPI's normal 404 handling
+    from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Not found")
 
 @app.options("/a2a/card")
@@ -672,51 +721,6 @@ async def launcher_status():
         "agent_url": "https://web-production-4866d.up.railway.app",
         "uptime": "online"
     }
-
-@app.get("/.well-known/agent-card.json")
-async def get_agent_card_standard():
-    """Standard AgentBeats agent card endpoint."""
-    card = green_agent.get_agent_card()
-    return {
-        "name": card.name,
-        "version": card.version,
-        "description": card.description,
-        "capabilities": card.capabilities,
-        "agent_type": card.agent_type,
-        "protocol_version": card.protocol_version,
-        "endpoints": {
-            "agent_card": "/a2a/card",
-            "list_tasks": "/a2a/tasks",
-            "accept_task": "/a2a/task", 
-            "run_assessment": "/a2a/run",
-            "health_check": "/health",
-            "launcher_start": "/launcher/start",
-            "launcher_stop": "/launcher/stop", 
-            "launcher_status": "/launcher/status"
-        },
-        "contact": {
-            "repository": "https://github.com/alejandromaciass/personagymattack",
-            "maintainer": "PersonaGym-R Team"
-        },
-        "requirements": {
-            "min_agents": 1,
-            "max_agents": 10,
-            "supported_protocols": ["A2A-1.0"],
-            "resource_requirements": {
-                "memory_mb": 512,
-                "cpu_cores": 2,
-                "gpu": False
-            }
-        },
-        "metadata": {
-            "created": "2025-11-18",
-            "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
-            "difficulty": "medium-hard",
-            "estimated_duration_minutes": 5,
-            "launcher_url": "https://web-production-4866d.up.railway.app/launcher/start"
-        }
-    }
-
 
 if __name__ == "__main__":
     # Configure logging
