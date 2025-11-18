@@ -1,5 +1,5 @@
-# PersonaGym-R Railway Dependencies (Python 3.11 compatible)
-# Uses direct green agent without earthshaker controller
+# PersonaGym-R Docker Dependencies (without earthshaker)
+# For containerized deployment where earthshaker isn't needed
 
 # Core PersonaGym-R dependencies
 pydantic>=2.7
@@ -18,6 +18,3 @@ pyyaml>=6.0
 fastapi>=0.120.3
 uvicorn[standard]>=0.18.0
 httpx>=0.28.1
-
-# Install PersonaGym-R package
--e .

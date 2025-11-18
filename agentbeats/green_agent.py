@@ -375,10 +375,10 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Get configuration from environment (set by earthshaker controller)
+    # Get configuration from environment (set by Railway/other cloud providers)
     import os
     host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('AGENT_PORT', '8000'))
+    port = int(os.getenv('PORT', os.getenv('AGENT_PORT', '8000')))  # Railway uses PORT, earthshaker uses AGENT_PORT
     
     # Run the server
     uvicorn.run(app, host=host, port=port)
