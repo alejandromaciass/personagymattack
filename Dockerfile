@@ -10,13 +10,14 @@ RUN apt-get update && apt-get install -y \
 
 # Copy project files
 COPY pyproject.toml .
+COPY requirements-prod.txt .
 COPY src/ ./src/
 COPY tasks/ ./tasks/
 COPY agentbeats/ ./agentbeats/
 
 # Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-prod.txt
 RUN pip install --no-cache-dir -e .
-RUN pip install --no-cache-dir -r agentbeats/requirements.txt
 
 # Create reports directory
 RUN mkdir -p reports

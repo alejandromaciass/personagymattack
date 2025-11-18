@@ -1,5 +1,4 @@
-# PersonaGym-R with AgentBeats Integration
-# For Google Cloud Run deployment
+# PersonaGym-R Production Dependencies for Cloud Deployment
 
 # Core PersonaGym-R dependencies
 pydantic>=2.7
@@ -11,11 +10,16 @@ scikit-learn>=1.5
 # AgentBeats Controller (earthshaker)
 earthshaker
 
-# A2A Protocol Library
+# A2A Protocol Library  
 a2a-python
 
 # Additional utilities
 pyyaml>=6.0
 
-# Install PersonaGym-R itself
+# FastAPI for green agent
+fastapi>=0.120.3
+uvicorn[standard]>=0.18.0
+httpx>=0.28.1
+
+# Install PersonaGym-R package
 -e .
