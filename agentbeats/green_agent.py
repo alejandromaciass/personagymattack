@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -144,7 +144,7 @@ class PersonaGymGreenAgent:
         
     def get_agent_card(self) -> AgentCard:
         """Return agent card per A2A protocol."""
-        return AgentCard()
+        return AgentCard(url="https://web-production-4866d.up.railway.app")
     
     def list_available_tasks(self) -> List[Dict[str, str]]:
         """List all available assessment tasks."""
@@ -352,6 +352,88 @@ async def api_info():
 async def get_card():
     """Return agent card (A2A protocol)."""
     return green_agent.get_agent_card()
+
+@app.get("/agent-card")
+async def get_simple_agent_card():
+    """Alternative simple agent card endpoint."""
+    return {
+        "name": "PersonaGym-R Green Agent",
+        "version": "1.0.0",
+        "agent_type": "green",
+        "protocol_version": "A2A-1.0"
+    }
+
+@app.post("/api/agents/card")
+async def agentbeats_get_agent_card(request: Request):
+    """AgentBeats-specific agent card endpoint."""
+    try:
+        # Try to get the request body if present
+        try:
+            body = await request.json()
+        except:
+            body = {}
+            
+        card = green_agent.get_agent_card()
+        return {
+            "success": True,
+            "agent_card": {
+                "name": card.name,
+                "version": card.version,
+                "description": card.description,
+                "capabilities": card.capabilities,
+                "agent_type": card.agent_type,
+                "protocol_version": card.protocol_version,
+                "url": card.url,
+                "endpoints": {
+                    "agent_card": "/a2a/card",
+                    "list_tasks": "/a2a/tasks",
+                    "accept_task": "/a2a/task",
+                    "run_assessment": "/a2a/run",
+                    "health_check": "/health",
+                    "launcher_start": "/launcher/start",
+                    "launcher_stop": "/launcher/stop",
+                    "launcher_status": "/launcher/status"
+                }
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/agents/card") 
+async def agentbeats_get_agent_card_get():
+    """AgentBeats-specific agent card endpoint (GET version)."""
+    card = green_agent.get_agent_card()
+    return {
+        "success": True,
+        "agent_card": {
+            "name": card.name,
+            "version": card.version,
+            "description": card.description,
+            "capabilities": card.capabilities,
+            "agent_type": card.agent_type,
+            "protocol_version": card.protocol_version,
+            "url": card.url
+        }
+    }
+
+@app.options("/api/agents/card")
+async def agentbeats_agent_card_options():
+    """CORS preflight for AgentBeats agent card endpoint."""
+    return {}
+
+@app.post("/api/agents/validate")
+async def agentbeats_validate_agent():
+    """AgentBeats agent validation endpoint."""
+    return {
+        "success": True,
+        "valid": True,
+        "agent_type": "green",
+        "protocol_version": "A2A-1.0",
+        "message": "Agent validation successful"
+    }
 
 @app.options("/a2a/card")
 async def options_card():
