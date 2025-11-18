@@ -1,5 +1,5 @@
 # PersonaGym-R Railway Dependencies (Python 3.11 compatible)
-# Uses direct green agent without earthshaker controller
+# Uses earthshaker controller for AgentBeats compatibility
 
 # Core PersonaGym-R dependencies
 pydantic>=2.7
@@ -8,7 +8,8 @@ rich>=13.7
 numpy>=1.26
 scikit-learn>=1.5
 
-# A2A Protocol Library  
+# AgentBeats Integration
+earthshaker
 a2a-python
 
 # Additional utilities

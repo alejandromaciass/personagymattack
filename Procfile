@@ -1,1 +1,1 @@
-web: python run_server.py
+web: agentbeats run_ctrl
