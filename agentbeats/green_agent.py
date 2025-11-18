@@ -36,6 +36,7 @@ class AgentCard(BaseModel):
     ]
     agent_type: str = "green"  # This is a hosting/evaluator agent
     protocol_version: str = "A2A-1.0"
+    url: str = "https://web-production-4866d.up.railway.app"
     
 class TaskRequest(BaseModel):
     """Task assignment from AgentBeats platform."""
@@ -286,7 +287,10 @@ class PersonaGymGreenAgent:
 app = FastAPI(
     title="PersonaGym-R Green Agent",
     description="A2A-compliant green agent for persona adherence testing",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
 
 # Add CORS middleware for AgentBeats platform
@@ -378,6 +382,11 @@ async def options_run():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "agent_type": "green", "version": "1.0.0"}
+
+@app.get("/status")
+async def status_check():
+    """Alternative status endpoint."""
+    return {"status": "online", "agent_type": "green", "version": "1.0.0", "ready": True}
 
 @app.get("/.well-known/agent-card.json")
 async def get_agent_card_standard():
