@@ -302,6 +302,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add middleware for request logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.now()
+    
+    # Log incoming request
+    print(f"🔍 [{start_time}] {request.method} {request.url}")
+    print(f"📋 Headers: {dict(request.headers)}")
+    
+    # Try to log body for POST requests
+    if request.method == "POST":
+        try:
+            body = await request.body()
+            if body:
+                print(f"📦 Body: {body.decode()}")
+        except:
+            print("📦 Body: (could not decode)")
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Log response
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    print(f"✅ [{end_time}] Response: {response.status_code} ({duration:.3f}s)")
+    
+    return response
+
 # Initialize green agent
 green_agent = PersonaGymGreenAgent(tasks_dir="tasks")
 
@@ -434,6 +462,72 @@ async def agentbeats_validate_agent():
         "protocol_version": "A2A-1.0",
         "message": "Agent validation successful"
     }
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def catch_unknown_api_requests(request: Request, path: str):
+    """Catch any API requests we haven't explicitly handled."""
+    method = request.method
+    url = str(request.url)
+    
+    print(f"🚨 Unknown API request: {method} /api/{path}")
+    print(f"🌐 Full URL: {url}")
+    
+    # Try to parse body
+    body = None
+    try:
+        if request.method in ["POST", "PUT", "PATCH"]:
+            body = await request.json()
+    except:
+        pass
+    
+    # Return helpful information
+    return {
+        "error": "Unknown API endpoint",
+        "method": method,
+        "path": f"/api/{path}",
+        "full_url": url,
+        "body": body,
+        "available_endpoints": {
+            "GET /api/agents/card": "Get agent card",
+            "POST /api/agents/card": "Get agent card (AgentBeats format)",
+            "POST /api/agents/validate": "Validate agent"
+        },
+        "suggestion": f"Did you mean to call one of the available endpoints? You called {method} /api/{path}"
+    }
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]) 
+async def catch_all_requests(request: Request, path: str):
+    """Catch any other requests to see what AgentBeats might be calling."""
+    # Skip logging for known good endpoints
+    known_endpoints = [
+        "", "health", "status", "a2a/card", "a2a/tasks", "a2a/task", "a2a/run",
+        ".well-known/agent-card.json", "launcher/start", "launcher/stop", 
+        "launcher/status", "docs", "redoc", "openapi.json"
+    ]
+    
+    if path not in known_endpoints:
+        method = request.method
+        url = str(request.url)
+        
+        print(f"🔍 Catchall request: {method} /{path}")
+        print(f"🌐 Full URL: {url}")
+        
+        # Return 404 with helpful info
+        return {
+            "error": "Endpoint not found", 
+            "method": method,
+            "path": f"/{path}",
+            "available_endpoints": [
+                "/.well-known/agent-card.json",
+                "/a2a/card", 
+                "/a2a/tasks",
+                "/health",
+                "/api/agents/card"
+            ]
+        }
+    
+    # For known endpoints, return 404 normally
+    raise HTTPException(status_code=404, detail="Not found")
 
 @app.options("/a2a/card")
 async def options_card():
