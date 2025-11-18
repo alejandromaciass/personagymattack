@@ -312,7 +312,40 @@ async def root():
         "message": "PersonaGym-R Green Agent",
         "agent_card": "/.well-known/agent-card.json",
         "health": "/health",
-        "tasks": "/a2a/tasks"
+        "tasks": "/a2a/tasks",
+        "documentation": "/docs",
+        "api_info": "/api"
+    }
+
+@app.get("/api")
+async def api_info():
+    """API information and endpoint listing."""
+    return {
+        "name": "PersonaGym-R Green Agent API",
+        "version": "1.0.0",
+        "protocol": "A2A-1.0",
+        "agent_type": "green",
+        "endpoints": {
+            "discovery": {
+                "agent_card": "GET /.well-known/agent-card.json",
+                "a2a_card": "GET /a2a/card",
+                "health": "GET /health",
+                "status": "GET /status"
+            },
+            "tasks": {
+                "list_tasks": "GET /a2a/tasks",
+                "accept_task": "POST /a2a/task",
+                "run_assessment": "POST /a2a/run"
+            },
+            "launcher": {
+                "start": "POST /launcher/start",
+                "stop": "POST /launcher/stop", 
+                "status": "GET /launcher/status"
+            },
+            "options": {
+                "cors_preflight": "OPTIONS /a2a/*"
+            }
+        }
     }
 
 @app.get("/a2a/card")
@@ -339,6 +372,17 @@ async def options_tasks():
 async def accept_task(task_request: TaskRequest) -> TaskResponse:
     """Accept a new task assignment."""
     return await green_agent.accept_task(task_request)
+
+@app.get("/a2a/task")
+async def get_task_info():
+    """Get information about task acceptance endpoint."""
+    return {
+        "endpoint": "/a2a/task",
+        "method": "POST",
+        "description": "Accept a new task assignment",
+        "accepts": "TaskRequest",
+        "returns": "TaskResponse"
+    }
 
 @app.post("/a2a/run")
 async def run_task(task_request: TaskRequest) -> StatusUpdate:
@@ -373,6 +417,17 @@ async def run_task(task_request: TaskRequest) -> StatusUpdate:
             message=f"Assessment failed: {str(e)}"
         )
 
+@app.get("/a2a/run")
+async def get_run_info():
+    """Get information about assessment execution endpoint."""
+    return {
+        "endpoint": "/a2a/run",
+        "method": "POST",
+        "description": "Execute an assessment task",
+        "accepts": "TaskRequest",
+        "returns": "StatusUpdate"
+    }
+
 @app.options("/a2a/run")
 async def options_run():
     """Handle CORS preflight for run."""
@@ -403,12 +458,32 @@ async def launcher_start():
         }
     }
 
+@app.get("/launcher/start")
+async def launcher_start_get():
+    """Launcher endpoint info (GET version)."""
+    return {
+        "endpoint": "/launcher/start",
+        "method": "POST",
+        "description": "Start the PersonaGym-R Green Agent",
+        "returns": "Launcher status and agent URL"
+    }
+
 @app.post("/launcher/stop") 
 async def launcher_stop():
     """Launcher endpoint to stop the agent."""
     return {
         "status": "stopped",
         "message": "PersonaGym-R Green Agent stop requested"
+    }
+
+@app.get("/launcher/stop")
+async def launcher_stop_get():
+    """Launcher stop endpoint info (GET version)."""
+    return {
+        "endpoint": "/launcher/stop",
+        "method": "POST", 
+        "description": "Stop the PersonaGym-R Green Agent",
+        "returns": "Stop confirmation"
     }
 
 @app.get("/launcher/status")
