@@ -1,1 +1,1 @@
-web: python agentbeats/green_agent.py
+web: python run_server.py

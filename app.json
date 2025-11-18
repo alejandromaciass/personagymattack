@@ -1,0 +1,23 @@
+{
+  "name": "PersonaGym-R Green Agent",
+  "description": "PersonaGym-R adversarial persona adherence benchmark for AgentBeats",
+  "repository": "https://github.com/alejandromaciass/personagymattack",
+  "keywords": ["ai", "benchmark", "persona", "agentbeats"],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "PYTHONUNBUFFERED": {
+      "description": "Ensures Python output is not buffered",
+      "value": "1"
+    }
+  }
+}
