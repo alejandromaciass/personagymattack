@@ -15,7 +15,8 @@ import uvicorn
 
 # Import PersonaGym-R components
 import sys
-sys.path.append(str(Path(__file__).parent.parent))
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.personagym_r.orchestrator import load_task, run_dialog
 from src.personagym_r.api_schema import PersonaCard, Goal, Rubric, SeedCfg, Score, TraceEvent
 from src.personagym_r.tools import io_bus
