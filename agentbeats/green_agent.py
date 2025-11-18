@@ -316,10 +316,20 @@ async def get_card():
     """Return agent card (A2A protocol)."""
     return green_agent.get_agent_card()
 
+@app.options("/a2a/card")
+async def options_card():
+    """Handle CORS preflight for agent card."""
+    return {}
+
 @app.get("/a2a/tasks")
 async def list_tasks():
     """List available assessment tasks."""
     return {"tasks": green_agent.list_available_tasks()}
+
+@app.options("/a2a/tasks")
+async def options_tasks():
+    """Handle CORS preflight for tasks."""
+    return {}
 
 @app.post("/a2a/task")
 async def accept_task(task_request: TaskRequest) -> TaskResponse:
@@ -358,6 +368,11 @@ async def run_task(task_request: TaskRequest) -> StatusUpdate:
             progress_percent=0,
             message=f"Assessment failed: {str(e)}"
         )
+
+@app.options("/a2a/run")
+async def options_run():
+    """Handle CORS preflight for run."""
+    return {}
 
 @app.get("/health")
 async def health_check():
