@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -288,8 +289,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS middleware for AgentBeats platform
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict to AgentBeats domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Initialize green agent
 green_agent = PersonaGymGreenAgent(tasks_dir="tasks")
+
+@app.get("/")
+async def root():
+    """Root endpoint redirecting to agent card."""
+    return {
+        "message": "PersonaGym-R Green Agent",
+        "agent_card": "/.well-known/agent-card.json",
+        "health": "/health",
+        "tasks": "/a2a/tasks"
+    }
 
 @app.get("/a2a/card")
 async def get_card():
@@ -363,8 +383,24 @@ async def get_agent_card_standard():
             "health_check": "/health"
         },
         "contact": {
-            "repository": "https://github.com/miayen7/personagymattack",
+            "repository": "https://github.com/alejandromaciass/personagymattack",
             "maintainer": "PersonaGym-R Team"
+        },
+        "requirements": {
+            "min_agents": 1,
+            "max_agents": 10,
+            "supported_protocols": ["A2A-1.0"],
+            "resource_requirements": {
+                "memory_mb": 512,
+                "cpu_cores": 2,
+                "gpu": False
+            }
+        },
+        "metadata": {
+            "created": "2025-11-18",
+            "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
+            "difficulty": "medium-hard",
+            "estimated_duration_minutes": 5
         }
     }
 
