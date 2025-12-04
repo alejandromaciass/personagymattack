@@ -305,28 +305,53 @@ app.add_middleware(
 # Add middleware for request logging
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = datetime.now()
+    import sys
+    from datetime import datetime as dt
     
-    # Log incoming request
-    print(f"🔍 [{start_time}] {request.method} {request.url}")
-    print(f"📋 Headers: {dict(request.headers)}")
+    start_time = dt.now()
+    
+    # Log incoming request with distinctive formatting
+    print(f"\n{'─'*70}", file=sys.stderr)
+    print(f"📥 INCOMING REQUEST [{start_time.isoformat()}]", file=sys.stderr)
+    print(f"{'─'*70}", file=sys.stderr)
+    print(f"Method: {request.method}", file=sys.stderr)
+    print(f"URL: {request.url}", file=sys.stderr)
+    print(f"Path: {request.url.path}", file=sys.stderr)
+    print(f"Query: {request.url.query}", file=sys.stderr)
+    print(f"Headers:", file=sys.stderr)
+    for key, value in request.headers.items():
+        print(f"  {key}: {value}", file=sys.stderr)
     
     # Try to log body for POST requests
-    if request.method == "POST":
+    if request.method in ["POST", "PUT", "PATCH"]:
         try:
             body = await request.body()
             if body:
-                print(f"📦 Body: {body.decode()}")
-        except:
-            print("📦 Body: (could not decode)")
+                print(f"Body: {body.decode(errors='replace')}", file=sys.stderr)
+            else:
+                print(f"Body: (empty)", file=sys.stderr)
+        except Exception as e:
+            print(f"Body: (could not read - {e})", file=sys.stderr)
     
     # Process request
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        print(f"❌ ERROR processing request: {e}", file=sys.stderr)
+        raise
     
     # Log response
-    end_time = datetime.now()
+    end_time = dt.now()
     duration = (end_time - start_time).total_seconds()
-    print(f"✅ [{end_time}] Response: {response.status_code} ({duration:.3f}s)")
+    print(f"{'─'*70}", file=sys.stderr)
+    print(f"📤 OUTGOING RESPONSE [{end_time.isoformat()}]", file=sys.stderr)
+    print(f"{'─'*70}", file=sys.stderr)
+    print(f"Status Code: {response.status_code}", file=sys.stderr)
+    print(f"Duration: {duration:.3f}s", file=sys.stderr)
+    print(f"Response Headers:", file=sys.stderr)
+    for key, value in response.headers.items():
+        print(f"  {key}: {value}", file=sys.stderr)
+    print(f"{'─'*70}\n", file=sys.stderr)
     
     return response
 
@@ -693,6 +718,24 @@ if __name__ == "__main__":
     import os
     host = os.getenv('HOST', '0.0.0.0')
     port = int(os.getenv('PORT', os.getenv('AGENT_PORT', '8000')))  # Railway uses PORT, earthshaker uses AGENT_PORT
+    agent_url = os.getenv('AGENT_URL', f'http://{host}:{port}')
+    
+    print("\n" + "="*60)
+    print("🚀 PERSONAGYM-R GREEN AGENT STARTING")
+    print("="*60)
+    print(f"Host: {host}")
+    print(f"Port: {port}")
+    print(f"Agent URL: {agent_url}")
+    print(f"Environment variables:")
+    print(f"  - HOST: {os.getenv('HOST', 'NOT SET')}")
+    print(f"  - PORT: {os.getenv('PORT', 'NOT SET')}")
+    print(f"  - AGENT_PORT: {os.getenv('AGENT_PORT', 'NOT SET')}")
+    print(f"  - AGENT_URL: {os.getenv('AGENT_URL', 'NOT SET')}")
+    print("\nKey endpoints:")
+    print(f"  - Agent card: {agent_url}/.well-known/agent-card.json")
+    print(f"  - Health: {agent_url}/health")
+    print(f"  - Status: {agent_url}/status")
+    print("="*60 + "\n")
     
     # Run the server
     uvicorn.run(app, host=host, port=port)
