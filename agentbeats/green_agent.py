@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -509,6 +509,13 @@ async def get_agent_card_standard():
         }
     }
 
+
+@app.head("/.well-known/agent-card.json")
+async def head_agent_card():
+    """HEAD handler for agent card to support clients that probe with HEAD."""
+    # Return headers only (no body) but report JSON content-type so callers know
+    return Response(status_code=200, headers={"content-type": "application/json"})
+
 @app.options("/a2a/card")
 async def options_card():
     """Handle CORS preflight for agent card."""
@@ -598,6 +605,15 @@ async def health_check():
 async def status_check():
     """Alternative status endpoint."""
     return {"status": "online", "agent_type": "green", "version": "1.0.0", "ready": True}
+
+@app.get("/debug")
+async def debug_endpoint():
+    """Debug endpoint to check if requests are being logged."""
+    return {
+        "message": "Debug endpoint working",
+        "timestamp": datetime.now().isoformat(),
+        "note": "Check server logs for incoming request logs from AgentBeats"
+    }
 
 @app.post("/launcher/start")
 async def launcher_start():
