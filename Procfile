@@ -1,1 +1,1 @@
-web: agentbeats run_ctrl
+web: python agentbeats/green_agent.py
