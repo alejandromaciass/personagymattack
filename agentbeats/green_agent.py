@@ -465,9 +465,22 @@ async def agentbeats_validate_agent():
 
 # IMPORTANT: Put specific endpoints BEFORE catchall routes
 @app.get("/.well-known/agent-card.json")
-async def get_agent_card_standard():
-    """Standard AgentBeats agent card endpoint."""
+async def get_agent_card_standard(request: Request):
+    """Standard AgentBeats agent card endpoint with detailed logging."""
+    import sys
+    from datetime import datetime
     card = green_agent.get_agent_card()
+    # Log request details for debugging
+    print("\n=== AGENT CARD ENDPOINT HIT ===", file=sys.stderr)
+    print(f"[{datetime.now().isoformat()}] {request.method} {request.url}", file=sys.stderr)
+    print(f"Headers: {dict(request.headers)}", file=sys.stderr)
+    try:
+        body = await request.body()
+        if body:
+            print(f"Body: {body.decode(errors='replace')}", file=sys.stderr)
+    except Exception as e:
+        print(f"(Could not read body: {e})", file=sys.stderr)
+    print("=== END AGENT CARD LOG ===\n", file=sys.stderr)
     return {
         "name": card.name,
         "version": card.version,
