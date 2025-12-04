@@ -739,3 +739,4 @@ if __name__ == "__main__":
     
     # Run the server
     uvicorn.run(app, host=host, port=port)
+# Force Railway redeploy
