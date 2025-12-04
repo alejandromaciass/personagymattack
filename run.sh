@@ -22,4 +22,4 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-exec python agentbeats/green_agent.py --host "$HOST" --port "$AGENT_PORT"
+exec python agentbeats/green_agent.py
