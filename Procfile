@@ -1,2 +1,1 @@
-web: agentbeats run_ctrl
-# Redeploy
+web: python agentbeats/green_agent.py
