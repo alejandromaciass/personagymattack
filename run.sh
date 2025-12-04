@@ -22,5 +22,4 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# Run the FastAPI-based green agent
-python agentbeats/green_agent.py
+exec python agentbeats/green_agent.py --host "$HOST" --port "$AGENT_PORT"
