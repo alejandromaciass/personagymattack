@@ -1,2 +1,2 @@
 
-web: agentbeats run_ctrl
+web: echo "RUNNING AGENTBEATS CTRL" && agentbeats run_ctrl
