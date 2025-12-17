@@ -1,6 +1,9 @@
 # AgentBeats Integration
 
-This directory contains all components needed to deploy PersonaGym-R as a **green agent** (hosting/evaluator) on the AgentBeats platform.
+This directory contains components needed to deploy PersonaGym-R on the AgentBeats platform.
+
+- **Green agent (hosting/evaluator)**: `agentbeats/green_agent.py`
+- **White agent (participant)**: `agentbeats/white_agent.py` (minimal reference implementation)
 
 ## Quick Start
 
@@ -11,6 +14,9 @@ pip install -r requirements.txt
 # Run locally (direct)
 python agentbeats/green_agent.py
 
+# Or run the minimal white agent locally (direct)
+python agentbeats/white_agent.py
+
 # Run for AgentBeats Remote (controller)
 # (recommended/required by AgentBeats v2 Remote)
 agentbeats run_ctrl
@@ -18,9 +24,29 @@ agentbeats run_ctrl
 # Agent will be available at http://localhost:8000
 ```
 
+## Deploying Both Green + White (Railway)
+
+You do **not** need a separate GitHub repository.
+
+Create **two Railway services** pointing at the same repo, both using the same start command (the controller). The controller spawns the actual agent via `run.sh`.
+
+- **Green service** (default): no extra config needed.
+- **White service**: set an environment variable `AGENT_ROLE=white`.
+
+Both services should run the controller (repository root):
+
+```bash
+bash start_controller_railway.sh
+```
+
+Then submit **each service’s controller root URL** to AgentBeats as separate submissions.
+
+Important: Submit the controller root URL (e.g. `https://<service>.up.railway.app/`), not the per-agent `/to_agent/<id>` URL.
+
 ## Files
 
 - **`green_agent.py`**: Main A2A-compliant web service implementing the green agent
+- **`white_agent.py`**: Minimal A2A-compliant web service implementing a white (participant) agent
 - **`controller.py`**: State management and reset functionality for assessment isolation
 - **`config.yaml`**: Complete configuration including tasks, metrics, and deployment settings
 - **`requirements.txt`**: Additional dependencies for A2A protocol (FastAPI, uvicorn, httpx)
