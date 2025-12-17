@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -189,6 +189,11 @@ async def healthz() -> Dict[str, Any]:
     return {"ok": True}
 
 
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    return {"status": "healthy", "agent_type": "white", "version": "1.0.0"}
+
+
 @app.get("/status")
 async def status() -> Dict[str, Any]:
     return {"status": "online", "agent_type": "white", "version": "1.0.0", "ready": True}
@@ -205,10 +210,21 @@ async def agent_card(request: Request) -> Dict[str, Any]:
             "submit": "/a2a/submit",
             "reset": "/a2a/reset",
             "healthz": "/healthz",
+            "health": "/health",
             "status": "/status",
         },
     )
     return card.model_dump()
+
+
+@app.head("/.well-known/agent-card.json")
+async def head_agent_card() -> Response:
+    return Response(status_code=200, headers={"content-type": "application/json"})
+
+
+@app.get("/a2a/card")
+async def a2a_card(request: Request) -> Dict[str, Any]:
+    return await agent_card(request)
 
 
 @app.post("/a2a/session", response_model=CreateSessionResponse)
