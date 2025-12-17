@@ -1,1 +1,1 @@
-web: /usr/local/python/3.13.9/bin/agentbeats run_ctrl
+web: agentbeats run_ctrl
