@@ -1,1 +1,1 @@
-web: agentbeats run_ctrl
+web: earthshaker run_ctrl
