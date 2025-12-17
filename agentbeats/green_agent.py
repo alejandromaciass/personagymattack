@@ -36,7 +36,32 @@ class AgentCard(BaseModel):
     ]
     agent_type: str = "green"  # This is a hosting/evaluator agent
     protocol_version: str = "A2A-1.0"
-    url: str = "https://web-production-4866d.up.railway.app"
+    url: str = ""
+
+
+def _public_base_url(request: Request | None = None) -> str:
+    """Best-effort public base URL.
+
+    Priority:
+    1) AGENT_URL (set by controller; should include /to_agent/<id>)
+    2) Forwarded headers (x-forwarded-proto/host)
+    3) HOST/PORT
+    """
+    env_agent_url = os.getenv("AGENT_URL")
+    if env_agent_url:
+        return env_agent_url.rstrip("/")
+
+    if request is not None:
+        xf_proto = request.headers.get("x-forwarded-proto")
+        xf_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        if xf_host:
+            scheme = xf_proto or "http"
+            return f"{scheme}://{xf_host}".rstrip("/")
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = os.getenv("PORT") or os.getenv("AGENT_PORT") or "8000"
+    scheme = "http"
+    return f"{scheme}://{host}:{port}".rstrip("/")
     
 class TaskRequest(BaseModel):
     """Task assignment from AgentBeats platform."""
@@ -144,7 +169,7 @@ class PersonaGymGreenAgent:
         
     def get_agent_card(self) -> AgentCard:
         """Return agent card per A2A protocol."""
-        return AgentCard(url="https://web-production-4866d.up.railway.app")
+        return AgentCard(url=_public_base_url())
     
     def list_available_tasks(self) -> List[Dict[str, str]]:
         """List all available assessment tasks."""
@@ -495,6 +520,7 @@ async def get_agent_card_standard(request: Request):
     import sys
     from datetime import datetime
     card = green_agent.get_agent_card()
+    public_url = _public_base_url(request)
     # Log request details for debugging
     print("\n=== AGENT CARD ENDPOINT HIT ===", file=sys.stderr)
     print(f"[{datetime.now().isoformat()}] {request.method} {request.url}", file=sys.stderr)
@@ -513,7 +539,7 @@ async def get_agent_card_standard(request: Request):
         "capabilities": card.capabilities,
         "agent_type": card.agent_type,
         "protocol_version": card.protocol_version,
-        "url": card.url,
+        "url": public_url,
         "endpoints": {
             "agent_card": "/a2a/card",
             "list_tasks": "/a2a/tasks",
@@ -543,7 +569,7 @@ async def get_agent_card_standard(request: Request):
             "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
             "difficulty": "medium-hard",
             "estimated_duration_minutes": 5,
-            "launcher_url": "https://web-production-4866d.up.railway.app/launcher/start"
+            "launcher_url": f"{public_url}/launcher/start"
         }
     }
 
@@ -656,10 +682,11 @@ async def debug_endpoint():
 @app.post("/launcher/start")
 async def launcher_start():
     """Launcher endpoint to start the agent."""
+    base_url = _public_base_url()
     return {
         "status": "started",
         "message": "PersonaGym-R Green Agent is running",
-        "agent_url": "https://web-production-4866d.up.railway.app",
+        "agent_url": base_url,
         "endpoints": {
             "agent_card": "/a2a/card",
             "tasks": "/a2a/tasks",
@@ -699,11 +726,12 @@ async def launcher_stop_get():
 @app.get("/launcher/status")
 async def launcher_status():
     """Launcher status check."""
+    base_url = _public_base_url()
     return {
         "status": "running",
         "agent_type": "green",
         "version": "1.0.0",
-        "agent_url": "https://web-production-4866d.up.railway.app",
+        "agent_url": base_url,
         "uptime": "online"
     }
 
@@ -739,4 +767,3 @@ if __name__ == "__main__":
     
     # Run the server
     uvicorn.run(app, host=host, port=port)
-# Force Railway redeploy
