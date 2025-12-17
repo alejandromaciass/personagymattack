@@ -1,1 +1,1 @@
-web: agentbeats run_ctrl
+web: bash start_controller_railway.sh
