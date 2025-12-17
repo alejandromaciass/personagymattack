@@ -389,6 +389,33 @@ async def log_requests(request: Request, call_next):
 green_agent = PersonaGymGreenAgent(tasks_dir="tasks")
 
 
+def _maybe_mark_controller_state_running() -> None:
+    agent_url = os.getenv("AGENT_URL")
+    if not agent_url:
+        return
+
+    # Expecting something like: https://<host>/to_agent/<id>
+    parts = agent_url.rstrip("/").split("/")
+    try:
+        idx = parts.index("to_agent")
+        agent_id = parts[idx + 1]
+    except Exception:
+        return
+
+    try:
+        state_path = Path(".ab") / "agents" / agent_id / "state"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text("running", encoding="utf-8")
+    except Exception:
+        # Never fail startup due to best-effort state marking.
+        return
+
+
+@app.on_event("startup")
+async def _startup_mark_running():
+    _maybe_mark_controller_state_running()
+
+
 @app.get("/healthz")
 async def healthz():
     """Lightweight health endpoint for proxies/controllers."""
