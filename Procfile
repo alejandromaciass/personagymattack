@@ -1,1 +1,1 @@
-web: earthshaker run_ctrl
+web: /usr/local/python/3.13.9/bin/agentbeats run_ctrl
