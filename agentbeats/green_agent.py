@@ -59,7 +59,7 @@ def _public_base_url(request: Request | None = None) -> str:
             scheme = xf_proto or "http"
             return f"{scheme}://{xf_host}".rstrip("/")
 
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = os.getenv("PORT") or os.getenv("AGENT_PORT") or "8000"
     scheme = "http"
     return f"{scheme}://{host}:{port}".rstrip("/")
@@ -784,8 +784,9 @@ if __name__ == "__main__":
     
     # Get configuration from environment (set by Railway/other cloud providers)
     import os
-    host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('PORT', os.getenv('AGENT_PORT', '8000')))  # Railway uses PORT, earthshaker uses AGENT_PORT
+    host = os.getenv('HOST', '127.0.0.1')
+    # Under the controller, AGENT_PORT is the bind port. PORT is typically the controller's port.
+    port = int(os.getenv('AGENT_PORT', os.getenv('PORT', '8000')))
     agent_url = os.getenv('AGENT_URL', f'http://{host}:{port}')
     
     print("\n" + "="*60)

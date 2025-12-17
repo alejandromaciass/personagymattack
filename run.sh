@@ -7,7 +7,8 @@
 # - $AGENT_PORT: Port to listen on (default: 8000)
 
 # Set defaults if not provided
-export HOST=${HOST:-0.0.0.0}
+# Under the controller, the agent is contacted locally; bind to loopback by default.
+export HOST=${HOST:-127.0.0.1}
 export AGENT_PORT=${AGENT_PORT:-8000}
 export PERSONAGYM_TASKS_DIR=${PERSONAGYM_TASKS_DIR:-tasks}
 
