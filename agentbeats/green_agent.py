@@ -679,6 +679,35 @@ async def debug_endpoint():
         "note": "Check server logs for incoming request logs from AgentBeats"
     }
 
+
+@app.get("/diagnostics")
+async def diagnostics(request: Request):
+    """Diagnostics for AgentBeats integration.
+
+    Shows how we compute the public base URL and what the platform likely sees.
+    """
+    public_url = _public_base_url(request)
+    return {
+        "computed_public_url": public_url,
+        "computed_agent_card_url": f"{public_url}/.well-known/agent-card.json",
+        "env": {
+            "HOST": os.getenv("HOST"),
+            "PORT": os.getenv("PORT"),
+            "AGENT_PORT": os.getenv("AGENT_PORT"),
+            "AGENT_URL": os.getenv("AGENT_URL"),
+        },
+        "forwarded": {
+            "x-forwarded-proto": request.headers.get("x-forwarded-proto"),
+            "x-forwarded-host": request.headers.get("x-forwarded-host"),
+            "host": request.headers.get("host"),
+        },
+        "paths": {
+            "status": "/status",
+            "health": "/health",
+            "agent_card": "/.well-known/agent-card.json",
+        },
+    }
+
 @app.post("/launcher/start")
 async def launcher_start():
     """Launcher endpoint to start the agent."""

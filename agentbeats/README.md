@@ -8,8 +8,12 @@ This directory contains all components needed to deploy PersonaGym-R as a **gree
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the green agent
-python -m agentbeats.green_agent
+# Run locally (direct)
+python agentbeats/green_agent.py
+
+# Run for AgentBeats Remote (controller)
+# (recommended/required by AgentBeats v2 Remote)
+agentbeats run_ctrl
 
 # Agent will be available at http://localhost:8000
 ```
@@ -83,7 +87,7 @@ See parent directory documentation:
 
 **Local Testing**:
 ```bash
-python -m agentbeats.green_agent
+python agentbeats/green_agent.py
 ```
 
 **Docker**:
@@ -95,8 +99,9 @@ docker run -p 8000:8000 personagym-green-agent
 **Remote Server**:
 ```bash
 # On your server
-python -m agentbeats.green_agent
-# Submit URL to AgentBeats: https://your-server.com:8000
+agentbeats run_ctrl
+# Submit Controller URL to AgentBeats: https://your-server.com
+# (Do NOT include /to_agent/...; the platform discovers agents via the controller)
 ```
 
 ## White Agent Requirements
@@ -118,12 +123,13 @@ Test the green agent locally:
 
 ```bash
 # Terminal 1: Start green agent
-python -m agentbeats.green_agent
+python agentbeats/green_agent.py
 
 # Terminal 2: Test endpoints
 curl http://localhost:8000/a2a/card
 curl http://localhost:8000/a2a/tasks
 curl http://localhost:8000/health
+curl http://localhost:8000/diagnostics
 ```
 
 ## Metrics
