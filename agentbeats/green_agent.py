@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import traceback
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -330,6 +331,9 @@ app.add_middleware(
 # Add middleware for request logging
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    if os.getenv("REQUEST_DEBUG", "0") not in {"1", "true", "True"}:
+        return await call_next(request)
+
     import sys
     from datetime import datetime as dt
     
@@ -363,6 +367,7 @@ async def log_requests(request: Request, call_next):
         response = await call_next(request)
     except Exception as e:
         print(f"❌ ERROR processing request: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         raise
     
     # Log response
@@ -382,6 +387,12 @@ async def log_requests(request: Request, call_next):
 
 # Initialize green agent
 green_agent = PersonaGymGreenAgent(tasks_dir="tasks")
+
+
+@app.get("/healthz")
+async def healthz():
+    """Lightweight health endpoint for proxies/controllers."""
+    return {"ok": True}
 
 @app.get("/")
 async def root():
