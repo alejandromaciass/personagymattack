@@ -19,7 +19,9 @@ It is intended for PaaS deployments (Railway) where we control the start script.
 from __future__ import annotations
 
 import os
-from typing import Iterable
+import json
+from typing import Any, Iterable
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from fastapi import FastAPI, Request
@@ -89,14 +91,39 @@ async def root_agent_card(request: Request) -> Response:
             return Response(status_code=503, content=b"No agents available")
 
         agent_id = next(iter(agents.keys()))
-        card_resp = await client.get(f"{base}/to_agent/{agent_id}/.well-known/agent-card.json")
+
+        # Ask the controller for the proxied agent card.
+        # (Also pass forwarded headers; some controllers forward them downstream.)
+        public_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        public_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+        forward_headers = {}
+        if public_host:
+            forward_headers["x-forwarded-host"] = public_host
+        if public_proto:
+            forward_headers["x-forwarded-proto"] = public_proto
+
+        card_resp = await client.get(
+            f"{base}/to_agent/{agent_id}/.well-known/agent-card.json",
+            headers=forward_headers,
+        )
         card_resp.raise_for_status()
 
-        return Response(
-            status_code=200,
-            content=card_resp.content,
-            media_type="application/json",
-        )
+        # Rewrite the card's public URL if it points at an internal host.
+        try:
+            card_json: dict[str, Any] = card_resp.json()
+            card_url = card_json.get("url")
+            if isinstance(card_url, str) and public_host:
+                parsed = urlparse(card_url)
+                internal_hosts = {"0.0.0.0", "127.0.0.1", "localhost"}
+                if (parsed.hostname or "").lower() in internal_hosts:
+                    scheme = public_proto or "https"
+                    rebuilt = parsed._replace(scheme=scheme, netloc=public_host)
+                    card_json["url"] = urlunparse(rebuilt)
+            content = json.dumps(card_json).encode("utf-8")
+        except Exception:
+            content = card_resp.content
+
+        return Response(status_code=200, content=content, media_type="application/json")
 
 
 @app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
