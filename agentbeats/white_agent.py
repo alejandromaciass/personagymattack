@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -41,6 +42,21 @@ def _public_base_url(request: Request | None = None) -> str:
     """
     env_agent_url = os.getenv("AGENT_URL")
     if env_agent_url:
+        parsed = urlparse(env_agent_url)
+        path = (parsed.path or "").rstrip("/")
+        hostname = (parsed.hostname or "").lower()
+
+        # If the controller injected an internal URL (common in PaaS), prefer
+        # forwarded headers to reconstruct the public URL while preserving the
+        # /to_agent/<id> path.
+        internal_hosts = {"0.0.0.0", "127.0.0.1", "localhost"}
+        if request is not None and hostname in internal_hosts:
+            xf_proto = request.headers.get("x-forwarded-proto")
+            xf_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+            if xf_host:
+                scheme = xf_proto or "http"
+                return f"{scheme}://{xf_host}{path}".rstrip("/")
+
         return env_agent_url.rstrip("/")
 
     if request is not None:

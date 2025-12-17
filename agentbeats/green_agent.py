@@ -18,6 +18,7 @@ import uvicorn
 # Import PersonaGym-R components
 import sys
 import os
+from urllib.parse import urlparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.personagym_r.orchestrator import load_task, run_dialog
 from src.personagym_r.api_schema import PersonaCard, Goal, Rubric, SeedCfg, Score, TraceEvent
@@ -50,6 +51,18 @@ def _public_base_url(request: Request | None = None) -> str:
     """
     env_agent_url = os.getenv("AGENT_URL")
     if env_agent_url:
+        parsed = urlparse(env_agent_url)
+        path = (parsed.path or "").rstrip("/")
+        hostname = (parsed.hostname or "").lower()
+
+        internal_hosts = {"0.0.0.0", "127.0.0.1", "localhost"}
+        if request is not None and hostname in internal_hosts:
+            xf_proto = request.headers.get("x-forwarded-proto")
+            xf_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+            if xf_host:
+                scheme = xf_proto or "http"
+                return f"{scheme}://{xf_host}{path}".rstrip("/")
+
         return env_agent_url.rstrip("/")
 
     if request is not None:
