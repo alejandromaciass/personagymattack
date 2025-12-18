@@ -82,6 +82,10 @@ class AgentCard(BaseModel):
     endpoints: Dict[str, str] = Field(default_factory=dict)
 
 
+class TasksResponse(BaseModel):
+    tasks: list[Dict[str, Any]] = Field(default_factory=list)
+
+
 class CreateSessionRequest(BaseModel):
     persona: Dict[str, Any] = Field(default_factory=dict)
 
@@ -247,6 +251,7 @@ async def agent_card(request: Request) -> Dict[str, Any]:
     card = AgentCard(
         url=base,
         endpoints={
+            "tasks": "/a2a/tasks",
             "session": "/a2a/session",
             "respond": "/a2a/respond",
             "submit": "/a2a/submit",
@@ -267,6 +272,16 @@ async def head_agent_card() -> Response:
 @app.get("/a2a/card")
 async def a2a_card(request: Request) -> Dict[str, Any]:
     return await agent_card(request)
+
+
+@app.get("/a2a/tasks", response_model=TasksResponse)
+async def a2a_tasks() -> TasksResponse:
+    """List tasks.
+
+    White/participant agents don't usually provide tasks, but some integration
+    checks (and our own root index) probe this endpoint. Return an empty list.
+    """
+    return TasksResponse(tasks=[])
 
 
 @app.post("/a2a/session", response_model=CreateSessionResponse)
