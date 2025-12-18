@@ -266,22 +266,51 @@ async def proxy_to_agent_safe(request: Request, agent_id: str, rest: str = "") -
             return Response(status_code=503, content=b"No agents available")
         combined_rest = f"{agent_id}/{rest}".strip("/") if rest else agent_id.strip("/")
         rewritten = f"to_agent/{first}/{combined_rest}" if combined_rest else f"to_agent/{first}"
-        resp = await proxy_all(request, rewritten)
+        # If this was an agent-card probe under /to_agent (missing id), handle it
+        # directly so we can reliably rewrite the returned card's `url`.
+        if combined_rest.endswith(".well-known/agent-card.json"):
+            base = _controller_base_url()
+            public_origin = _public_origin(request)
 
-        # If this was an agent-card probe under /to_agent (missing id), rewrite the
-        # returned card's `url` so strict validators accept it.
-        if combined_rest.endswith(".well-known/agent-card.json") and resp.status_code < 400:
-            card_json = _safe_json_bytes_load(resp.body)
-            if isinstance(card_json, dict):
-                card_json["url"] = f"{_public_origin(request)}/to_agent"
+            forward_headers: dict[str, str] = {}
+            public_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+            public_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+            if public_host:
+                forward_headers["x-forwarded-host"] = public_host
+            if public_proto:
+                forward_headers["x-forwarded-proto"] = public_proto
+
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+                upstream = await client.get(
+                    f"{base}/to_agent/{first}/.well-known/agent-card.json",
+                    headers=forward_headers,
+                )
+                if upstream.status_code >= 400:
+                    return Response(
+                        status_code=upstream.status_code,
+                        content=upstream.content,
+                        headers=_filter_headers(upstream.headers.items()),
+                        media_type=upstream.headers.get("content-type"),
+                    )
+
+                card_json = _safe_response_json(upstream)
+                if isinstance(card_json, dict):
+                    card_json["url"] = f"{public_origin}/to_agent"
+                    return Response(
+                        status_code=200,
+                        content=json.dumps(card_json).encode("utf-8"),
+                        headers={"cache-control": "no-store"},
+                        media_type="application/json",
+                    )
+
                 return Response(
-                    status_code=resp.status_code,
-                    content=json.dumps(card_json).encode("utf-8"),
-                    headers={**dict(resp.headers), "cache-control": "no-store"},
-                    media_type="application/json",
+                    status_code=200,
+                    content=upstream.content,
+                    headers=_filter_headers(upstream.headers.items()),
+                    media_type=upstream.headers.get("content-type"),
                 )
 
-        return resp
+        return await proxy_all(request, rewritten)
 
     try:
         known = await _is_known_agent(agent_id)
