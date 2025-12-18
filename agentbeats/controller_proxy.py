@@ -74,6 +74,67 @@ app.add_middleware(
 )
 
 
+@app.get("/agents")
+async def agents(request: Request) -> Response:
+    """Proxy /agents but fix up stale 'starting' state.
+
+    The upstream controller may leave an agent in state='starting' even after the
+    process is reachable (common in PaaS deployments). Some UI flows display this
+    state prominently, so we opportunistically promote 'starting' -> 'running'
+    when the agent answers health checks.
+    """
+    base = _controller_base_url()
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+        upstream = await client.get(
+            f"{base}/agents",
+            params=dict(request.query_params),
+            headers=dict(request.headers),
+        )
+
+        # If upstream failed or isn't JSON, just pass it through.
+        content_type = upstream.headers.get("content-type", "")
+        if upstream.status_code >= 400 or not content_type.startswith("application/json"):
+            return Response(
+                status_code=upstream.status_code,
+                content=upstream.content,
+                headers=_filter_headers(upstream.headers.items()),
+                media_type=content_type or None,
+            )
+
+        try:
+            agents_json: Any = upstream.json()
+        except Exception:
+            return Response(
+                status_code=upstream.status_code,
+                content=upstream.content,
+                headers=_filter_headers(upstream.headers.items()),
+                media_type=content_type,
+            )
+
+        if isinstance(agents_json, dict):
+            # Best-effort health probe for agents that are still marked 'starting'.
+            for agent_id, info in list(agents_json.items()):
+                if not isinstance(info, dict):
+                    continue
+                if info.get("state") != "starting":
+                    continue
+                try:
+                    health = await client.get(f"{base}/to_agent/{agent_id}/health")
+                    if health.status_code < 400:
+                        info["state"] = "running"
+                except Exception:
+                    # Leave as-is if health probe fails.
+                    pass
+
+        return Response(
+            status_code=upstream.status_code,
+            content=json.dumps(agents_json).encode("utf-8"),
+            headers=_filter_headers(upstream.headers.items()),
+            media_type="application/json",
+        )
+
+
 @app.get("/.well-known/agent-card.json")
 async def root_agent_card(request: Request) -> Response:
     """Return an agent card at the controller root.
