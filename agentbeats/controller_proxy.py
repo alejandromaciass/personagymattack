@@ -103,6 +103,16 @@ async def _first_agent_id() -> str | None:
         return agent_id if isinstance(agent_id, str) and agent_id else None
 
 
+def _looks_like_agent_id(value: str) -> bool:
+    if len(value) != 32:
+        return False
+    try:
+        int(value, 16)
+        return True
+    except Exception:
+        return False
+
+
 app = FastAPI(
     title="AgentBeats Controller Proxy",
     version="1.0.0",
@@ -335,21 +345,23 @@ async def proxy_all(request: Request, full_path: str) -> Response:
     """Generic reverse proxy to the internal controller."""
     base = _controller_base_url()
 
-    # Some checkers have been observed issuing paths like /to_agent//... (empty id).
-    # That would otherwise 404, even though a valid agent exists. Treat it as the
-    # first discovered agent.
-    if full_path.startswith("to_agent//"):
-        rest = full_path.removeprefix("to_agent//")
-        agent_id = await _first_agent_id()
-        if not agent_id:
-            return Response(status_code=503, content=b"No agents available")
-        full_path = f"to_agent/{agent_id}/{rest}" if rest else f"to_agent/{agent_id}"
-
-    if full_path in {"to_agent", "to_agent/"}:
+    # Some checkers have been observed issuing paths with a missing agent id, e.g.
+    # /to_agent//.well-known/agent-card.json or /to_agent/.well-known/agent-card.json.
+    # Rewrite these to the first discovered agent.
+    if full_path == "to_agent" or full_path == "to_agent/":
         agent_id = await _first_agent_id()
         if not agent_id:
             return Response(status_code=503, content=b"No agents available")
         full_path = f"to_agent/{agent_id}"
+    elif full_path.startswith("to_agent/"):
+        remainder = full_path.removeprefix("to_agent/")
+        first_segment = remainder.split("/", 1)[0]
+        if (first_segment == "") or (not _looks_like_agent_id(first_segment)):
+            agent_id = await _first_agent_id()
+            if not agent_id:
+                return Response(status_code=503, content=b"No agents available")
+            rest = remainder.lstrip("/")
+            full_path = f"to_agent/{agent_id}/{rest}" if rest else f"to_agent/{agent_id}"
 
     url = f"{base}/{full_path}" if full_path else f"{base}/"
 
