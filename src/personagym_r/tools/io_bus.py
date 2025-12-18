@@ -33,7 +33,9 @@ class JsonlWriter:
 def make_report_dir() -> Path:
     """Create a timestamped report directory."""
     base = Path("reports")
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include sub-second precision to avoid collisions when multiple runs finish
+    # within the same second (common in demos/tests).
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     path = ensure_dir(base / ts)
     return path
 

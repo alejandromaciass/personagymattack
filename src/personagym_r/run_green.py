@@ -24,9 +24,9 @@ def main(
         raise typer.Exit(1)
     
     # Validate white agent
-    if white not in ["prompt", "tool", "llm", "openai", "claude"]:
+    if white not in ["prompt", "tool", "bad", "llm", "openai", "claude"]:
         console.print(f"[red]Error:[/] Invalid white agent: {white}")
-        console.print("Must be one of: prompt, tool, llm, openai, claude")
+        console.print("Must be one of: prompt, tool, bad, llm, openai, claude")
         raise typer.Exit(1)
     
     # Run evaluation

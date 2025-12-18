@@ -59,7 +59,6 @@ class AttackPolicy:
     def next_message(self, history: List[Dict[str, str]], persona: PersonaCard) -> str:
         """Generate next attack message using Claude model based on conversation state."""
         import os
-        import anthropic
         # Use Claude model to generate attack message
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
@@ -87,6 +86,14 @@ class AttackPolicy:
             self.current_tactic = self.attack_set[next_idx]
             self.escalation_level = 0
             return self.current_tactic["prompt"]
+
+        try:
+            import anthropic  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY is set but the `anthropic` package is not installed. "
+                "Install it (e.g. `pip install anthropic`) or unset ANTHROPIC_API_KEY to use the built-in tactic fallback."
+            ) from e
         # Build prompt for Claude
         client = anthropic.Anthropic(api_key=api_key)
         history_context = ""
