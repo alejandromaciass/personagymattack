@@ -60,6 +60,35 @@ def _filter_headers(headers: Iterable[tuple[str, str]]) -> dict[str, str]:
     return out
 
 
+def _safe_json_bytes_load(content: bytes) -> Any | None:
+    """Best-effort JSON loader.
+
+    In the wild we've observed upstream responses that claim
+    application/json but contain literal CR/LF characters inside string
+    values (invalid JSON). AgentBeats' checker appears to be strict.
+    We sanitize common control characters and try again.
+    """
+    try:
+        return json.loads(content)
+    except Exception:
+        pass
+
+    try:
+        text = content.decode("utf-8", errors="replace")
+        if "\n" in text or "\r" in text:
+            text = text.replace("\r", "").replace("\n", "")
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+def _safe_response_json(resp: httpx.Response) -> Any | None:
+    try:
+        return resp.json()
+    except Exception:
+        return _safe_json_bytes_load(resp.content)
+
+
 app = FastAPI(
     title="AgentBeats Controller Proxy",
     version="1.0.0",
@@ -87,7 +116,7 @@ async def root(request: Request) -> Response:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
             agents_resp = await client.get(f"{base}/agents")
             if agents_resp.status_code < 400:
-                agents_json = agents_resp.json()
+                agents_json = _safe_response_json(agents_resp)
                 if isinstance(agents_json, dict):
                     agent_count = len(agents_json)
     except Exception:
@@ -135,9 +164,8 @@ async def agents(request: Request) -> Response:
                 media_type=content_type or None,
             )
 
-        try:
-            agents_json: Any = upstream.json()
-        except Exception:
+        agents_json = _safe_response_json(upstream)
+        if agents_json is None:
             return Response(
                 status_code=upstream.status_code,
                 content=upstream.content,
@@ -175,9 +203,8 @@ async def _is_known_agent(agent_id: str) -> bool:
         resp = await client.get(f"{base}/agents")
         if resp.status_code >= 400:
             return True  # Don't block if controller is unhappy; proxy normally.
-        try:
-            agents_json: Any = resp.json()
-        except Exception:
+        agents_json = _safe_response_json(resp)
+        if agents_json is None:
             return True
         return isinstance(agents_json, dict) and agent_id in agents_json
 
@@ -226,7 +253,11 @@ async def root_agent_card(request: Request) -> Response:
     async with httpx.AsyncClient(timeout=15.0) as client:
         agents_resp = await client.get(f"{base}/agents")
         agents_resp.raise_for_status()
-        agents = agents_resp.json() if agents_resp.headers.get("content-type", "").startswith("application/json") else {}
+        agents = (
+            _safe_response_json(agents_resp)
+            if agents_resp.headers.get("content-type", "").startswith("application/json")
+            else {}
+        )
 
         if not isinstance(agents, dict) or not agents:
             return Response(status_code=503, content=b"No agents available")
@@ -279,10 +310,7 @@ async def root_agent_card_head() -> Response:
         agents_resp = await client.get(f"{base}/agents")
         if agents_resp.status_code >= 400:
             return Response(status_code=agents_resp.status_code)
-        try:
-            agents = agents_resp.json()
-        except Exception:
-            agents = {}
+        agents = _safe_response_json(agents_resp) or {}
         if not isinstance(agents, dict) or not agents:
             return Response(status_code=503)
     return Response(status_code=200, media_type="application/json")
