@@ -71,6 +71,38 @@ def _public_base_url(request: Request | None = None) -> str:
     return f"http://{host}:{port}".rstrip("/")
 
 
+def _tau_style_agent_card(request: Request) -> Dict[str, Any]:
+    """AgentBeats UI-compatible agent card.
+
+    Some AgentBeats pages display/validate a "tau-style" agent card schema
+    (camelCase keys like `protocolVersion`, `preferredTransport`, `skills`).
+    The example shown in AgentBeats for remote white agents uses this shape.
+
+    We still expose A2A endpoints separately (e.g., `/a2a/session`).
+    """
+    base = _public_base_url(request)
+    return {
+        "capabilities": {},
+        "defaultInputModes": ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        "description": "A2A white/participant agent for PersonaGymAttack demos",
+        "name": "PersonaGymAttack White Agent",
+        "preferredTransport": "JSONRPC",
+        "protocolVersion": "0.3.0",
+        "skills": [
+            {
+                "description": "Handles user requests and completes tasks",
+                "examples": [],
+                "id": "task_fulfillment",
+                "name": "Task Fulfillment",
+                "tags": ["general"],
+            }
+        ],
+        "url": base,
+        "version": "1.0.0",
+    }
+
+
 class AgentCard(BaseModel):
     name: str = "PersonaGymAttack White Agent"
     version: str = "1.0.0"
@@ -247,6 +279,19 @@ async def status() -> Dict[str, Any]:
 
 @app.get("/.well-known/agent-card.json")
 async def agent_card(request: Request) -> Dict[str, Any]:
+    # Serve the tau-style schema used by the AgentBeats UI examples.
+    return _tau_style_agent_card(request)
+
+
+@app.head("/.well-known/agent-card.json")
+async def head_agent_card() -> Response:
+    return Response(status_code=200, headers={"content-type": "application/json"})
+
+
+@app.get("/a2a/card")
+async def a2a_card(request: Request) -> Dict[str, Any]:
+    # Keep `/a2a/card` as an A2A-style card (with endpoints) for compatibility
+    # with A2A resolvers and existing integration tests.
     base = _public_base_url(request)
     card = AgentCard(
         url=base,
@@ -262,16 +307,6 @@ async def agent_card(request: Request) -> Dict[str, Any]:
         },
     )
     return card.model_dump()
-
-
-@app.head("/.well-known/agent-card.json")
-async def head_agent_card() -> Response:
-    return Response(status_code=200, headers={"content-type": "application/json"})
-
-
-@app.get("/a2a/card")
-async def a2a_card(request: Request) -> Dict[str, Any]:
-    return await agent_card(request)
 
 
 @app.get("/a2a/tasks", response_model=TasksResponse)
