@@ -184,6 +184,48 @@ app.add_middleware(
 white_agent = WhiteAgent()
 
 
+@app.get("/")
+async def root() -> Dict[str, Any]:
+    """Root endpoint with quick links.
+
+    The green agent exposes a small JSON index at `/`. Some clients (and humans)
+    probe the base URL (e.g., `/to_agent/<id>`) before fetching the agent card.
+    Returning a 200 here improves compatibility.
+    """
+    return {
+        "message": "PersonaGymAttack White Agent",
+        "agent_card": "/.well-known/agent-card.json",
+        "health": "/health",
+        "tasks": "/a2a/tasks",
+        "documentation": "/docs",
+        "api_info": "/api",
+    }
+
+
+@app.get("/api")
+async def api_info() -> Dict[str, Any]:
+    return {
+        "name": "PersonaGymAttack White Agent API",
+        "version": "1.0.0",
+        "protocol": "A2A-1.0",
+        "agent_type": "white",
+        "endpoints": {
+            "discovery": {
+                "agent_card": "GET /.well-known/agent-card.json",
+                "a2a_card": "GET /a2a/card",
+                "health": "GET /health",
+                "status": "GET /status",
+            },
+            "a2a": {
+                "session": "POST /a2a/session",
+                "respond": "POST /a2a/respond",
+                "submit": "POST /a2a/submit",
+                "reset": "POST /a2a/reset",
+            },
+        },
+    }
+
+
 @app.get("/healthz")
 async def healthz() -> Dict[str, Any]:
     return {"ok": True}

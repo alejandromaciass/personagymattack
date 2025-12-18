@@ -126,6 +126,27 @@ async def root_agent_card(request: Request) -> Response:
         return Response(status_code=200, content=content, media_type="application/json")
 
 
+@app.head("/.well-known/agent-card.json")
+async def root_agent_card_head() -> Response:
+    """HEAD support for UI health checks.
+
+    Some clients probe the card URL with HEAD first. We respond 200 if there is
+    at least one discovered agent; 503 if the controller has none.
+    """
+    base = _controller_base_url()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        agents_resp = await client.get(f"{base}/agents")
+        if agents_resp.status_code >= 400:
+            return Response(status_code=agents_resp.status_code)
+        try:
+            agents = agents_resp.json()
+        except Exception:
+            agents = {}
+        if not isinstance(agents, dict) or not agents:
+            return Response(status_code=503)
+    return Response(status_code=200, media_type="application/json")
+
+
 @app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
 async def proxy_all(request: Request, full_path: str) -> Response:
     """Generic reverse proxy to the internal controller."""
@@ -144,18 +165,25 @@ async def proxy_all(request: Request, full_path: str) -> Response:
     if "x-forwarded-proto" not in {k.lower(): v for k, v in headers.items()}:
         headers["x-forwarded-proto"] = "https" if request.url.scheme == "https" else "http"
 
+    # Some upstream controllers don't implement HEAD for all endpoints.
+    # To keep browser-based UIs happy, translate HEAD -> GET upstream and
+    # return an empty body.
+    upstream_method = "GET" if request.method.upper() == "HEAD" else request.method
+
     async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
         upstream = await client.request(
-            method=request.method,
+            method=upstream_method,
             url=url,
             params=dict(request.query_params),
             content=body,
             headers=headers,
         )
 
+        content = b"" if request.method.upper() == "HEAD" else upstream.content
+
         return Response(
             status_code=upstream.status_code,
-            content=upstream.content,
+            content=content,
             headers=_filter_headers(upstream.headers.items()),
             media_type=upstream.headers.get("content-type"),
         )
