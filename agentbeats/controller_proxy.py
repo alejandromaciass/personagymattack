@@ -248,6 +248,17 @@ async def proxy_to_agent_safe(request: Request, agent_id: str, rest: str = "") -
     which bubbles up as 500. Some UIs interpret that as "agent card can't be
     loaded" even when a new agent is running.
     """
+    # Some clients may accidentally omit the agent id and hit paths like
+    # /to_agent/.well-known/agent-card.json (agent_id='.well-known'). Treat these
+    # as "missing id" probes and rewrite to the first discovered agent.
+    if not _looks_like_agent_id(agent_id):
+        first = await _first_agent_id()
+        if not first:
+            return Response(status_code=503, content=b"No agents available")
+        combined_rest = f"{agent_id}/{rest}".strip("/") if rest else agent_id.strip("/")
+        rewritten = f"to_agent/{first}/{combined_rest}" if combined_rest else f"to_agent/{first}"
+        return await proxy_all(request, rewritten)
+
     try:
         known = await _is_known_agent(agent_id)
     except Exception:
