@@ -74,6 +74,39 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+async def root(request: Request) -> Response:
+    """Simple root endpoint.
+
+    Some checkers probe the controller root and may not follow redirects.
+    Return a small JSON index and include a best-effort agent count.
+    """
+    base = _controller_base_url()
+    agent_count: int | None = None
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+            agents_resp = await client.get(f"{base}/agents")
+            if agents_resp.status_code < 400:
+                agents_json = agents_resp.json()
+                if isinstance(agents_json, dict):
+                    agent_count = len(agents_json)
+    except Exception:
+        agent_count = None
+
+    payload = {
+        "status": "ok",
+        "agent_count": agent_count,
+        "agent_card": "/.well-known/agent-card.json",
+        "agents": "/agents",
+    }
+    return Response(
+        status_code=200,
+        content=json.dumps(payload).encode("utf-8"),
+        media_type="application/json",
+        headers={"cache-control": "no-store"},
+    )
+
+
 @app.get("/agents")
 async def agents(request: Request) -> Response:
     """Proxy /agents but fix up stale 'starting' state.
@@ -133,6 +166,53 @@ async def agents(request: Request) -> Response:
             headers=_filter_headers(upstream.headers.items()),
             media_type="application/json",
         )
+
+
+async def _is_known_agent(agent_id: str) -> bool:
+    """Return True if agent_id exists in the controller's /agents."""
+    base = _controller_base_url()
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+        resp = await client.get(f"{base}/agents")
+        if resp.status_code >= 400:
+            return True  # Don't block if controller is unhappy; proxy normally.
+        try:
+            agents_json: Any = resp.json()
+        except Exception:
+            return True
+        return isinstance(agents_json, dict) and agent_id in agents_json
+
+
+@app.api_route(
+    "/to_agent/{agent_id}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+)
+@app.api_route(
+    "/to_agent/{agent_id}/{rest:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+)
+async def proxy_to_agent_safe(request: Request, agent_id: str, rest: str = "") -> Response:
+    """Proxy /to_agent/* but avoid 500s for stale agent IDs.
+
+    The upstream controller can throw FileNotFoundError for a removed agent id,
+    which bubbles up as 500. Some UIs interpret that as "agent card can't be
+    loaded" even when a new agent is running.
+    """
+    try:
+        known = await _is_known_agent(agent_id)
+    except Exception:
+        known = True
+
+    if not known:
+        return Response(
+            status_code=404,
+            content=json.dumps({"detail": "Unknown agent id"}).encode("utf-8"),
+            media_type="application/json",
+            headers={"cache-control": "no-store"},
+        )
+
+    # Proxy through our generic handler.
+    full_path = f"to_agent/{agent_id}/{rest}".rstrip("/") if rest else f"to_agent/{agent_id}"
+    return await proxy_all(request, full_path)
 
 
 @app.get("/.well-known/agent-card.json")
