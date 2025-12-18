@@ -15,6 +15,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
+# A2A JSON-RPC server support (assessment runner posts JSON-RPC to the agent base URL)
+from a2a.server.apps.jsonrpc.fastapi_app import A2AFastAPIApplication
+from a2a.utils.errors import ServerError
+from a2a.server.request_handlers.request_handler import RequestHandler as A2ARequestHandler
+from a2a.types import (
+    AgentCard as A2AAgentCard,
+    DeleteTaskPushNotificationConfigParams,
+    GetTaskPushNotificationConfigParams,
+    ListTaskPushNotificationConfigParams,
+    Message,
+    MessageSendParams,
+    Role,
+    Task,
+    TaskIdParams,
+    TaskPushNotificationConfig,
+    TaskQueryParams,
+    TextPart,
+    UnsupportedOperationError,
+)
+
 # Import PersonaGym-R components
 import sys
 import os
@@ -434,6 +454,164 @@ async def log_requests(request: Request, call_next):
 green_agent = PersonaGymGreenAgent(tasks_dir="tasks")
 
 
+def _a2a_server_agent_card() -> A2AAgentCard:
+    # This card is used by the JSON-RPC server machinery. The assessment runner
+    # uses our tau-style card served at `/.well-known/agent-card.json`, so this
+    # does not need to be perfect, but should be valid.
+    return A2AAgentCard(
+        capabilities={},
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+        description="Adversarial persona adherence benchmark for AI agents",
+        name="PersonaGym-R Green Agent",
+        preferred_transport="JSONRPC",
+        protocol_version="0.3.0",
+        skills=[],
+        url=_public_base_url(None),
+        version="1.0.0",
+    )
+
+
+def _extract_message_text(message: Message) -> str:
+    texts: list[str] = []
+    for part in getattr(message, "parts", []) or []:
+        root = getattr(part, "root", part)
+        if hasattr(root, "text"):
+            try:
+                texts.append(str(getattr(root, "text")))
+            except Exception:
+                continue
+    return " ".join([t for t in texts if t]).strip()
+
+
+class _GreenJSONRPCHandler(A2ARequestHandler):
+    async def on_message_send(
+        self,
+        params: MessageSendParams,
+        context=None,
+    ) -> Task | Message:
+        incoming_text = _extract_message_text(params.message)
+
+        # Best-effort: support the legacy JSON request format used by our
+        # `green_agent_a2a.py` example (white_agent_url/task_id/seed).
+        if incoming_text.lstrip().startswith("{"):
+            try:
+                payload = json.loads(incoming_text)
+                if isinstance(payload, dict):
+                    white_agent_url = payload.get("white_agent_url")
+                    participant_agents = payload.get("participant_agents")
+                    task_id = payload.get("task_id") or "travel_yosemite_001"
+
+                    urls: list[str] = []
+                    if isinstance(white_agent_url, str) and white_agent_url.strip():
+                        urls = [white_agent_url.strip()]
+                    elif isinstance(participant_agents, list):
+                        urls = [
+                            str(u).strip()
+                            for u in participant_agents
+                            if isinstance(u, (str, int, float)) and str(u).strip()
+                        ]
+
+                    if urls:
+                        task_request = TaskRequest(
+                            task_id=str(task_id),
+                            task_type="assessment",
+                            participant_agents=urls,
+                            config={
+                                "seed": payload.get("seed"),
+                            },
+                        )
+                        results = await green_agent.run_assessment(task_request)
+                        summary = {
+                            "task_id": task_request.task_id,
+                            "results": [r.model_dump() for r in results],
+                        }
+                        return Message(
+                            message_id=f"green-{datetime.utcnow().timestamp()}",
+                            role=Role.agent,
+                            parts=[TextPart(text=json.dumps(summary))],
+                        )
+            except Exception:
+                # Fall through to generic response.
+                pass
+
+        response_text = (
+            "PersonaGym-R Green Agent (A2A JSON-RPC) is online. "
+            "Send JSON like {\"white_agent_url\": \"...\", \"task_id\": \"travel_yosemite_001\"} "
+            "to trigger an assessment, or use the REST endpoints under /a2a/*. "
+            f"Received: {incoming_text or '(empty)'}"
+        )
+        return Message(
+            message_id=f"green-{datetime.utcnow().timestamp()}",
+            role=Role.agent,
+            parts=[TextPart(text=response_text)],
+        )
+
+    async def on_get_task(
+        self,
+        params: TaskQueryParams,
+        context=None,
+    ) -> Task | None:
+        return None
+
+    async def on_cancel_task(
+        self,
+        params: TaskIdParams,
+        context=None,
+    ) -> Task | None:
+        return None
+
+    async def on_set_task_push_notification_config(
+        self,
+        params: TaskPushNotificationConfig,
+        context=None,
+    ) -> TaskPushNotificationConfig:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_message_send_stream(
+        self,
+        params: MessageSendParams,
+        context=None,
+    ):
+        raise ServerError(error=UnsupportedOperationError())
+        if False:  # pragma: no cover
+            yield
+
+    async def on_resubscribe_to_task(
+        self,
+        params: TaskIdParams,
+        context=None,
+    ):
+        raise ServerError(error=UnsupportedOperationError())
+        if False:  # pragma: no cover
+            yield
+
+    async def on_get_task_push_notification_config(
+        self,
+        params: TaskIdParams | GetTaskPushNotificationConfigParams,
+        context=None,
+    ) -> TaskPushNotificationConfig:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_list_task_push_notification_config(
+        self,
+        params: ListTaskPushNotificationConfigParams,
+        context=None,
+    ) -> list[TaskPushNotificationConfig]:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_delete_task_push_notification_config(
+        self,
+        params: DeleteTaskPushNotificationConfigParams,
+        context=None,
+    ) -> None:
+        raise ServerError(error=UnsupportedOperationError())
+
+
+_a2a_jsonrpc_app = A2AFastAPIApplication(
+    agent_card=_a2a_server_agent_card(),
+    http_handler=_GreenJSONRPCHandler(),
+)
 def _maybe_mark_controller_state_running() -> None:
     agent_url = os.getenv("AGENT_URL")
     if not agent_url:
@@ -477,6 +655,16 @@ async def root():
         "documentation": "/docs",
         "api_info": "/api"
     }
+
+
+# Register A2A JSON-RPC POST / on the existing FastAPI app.
+# Use a non-conflicting agent_card_url since we already serve the public card at
+# `/.well-known/agent-card.json`.
+_a2a_jsonrpc_app.add_routes_to_app(
+    app,
+    agent_card_url="/__a2a/agent-card.json",
+    rpc_url="/",
+)
 
 @app.get("/api")
 async def api_info():

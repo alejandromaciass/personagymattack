@@ -16,7 +16,7 @@ httpx>=0.25
 earthshaker
 
 # A2A Protocol Library
-a2a-python
+a2a-sdk[http-server]>=0.3.12
 
 # Additional utilities
 pyyaml>=6.0

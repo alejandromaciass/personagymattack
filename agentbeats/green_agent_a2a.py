@@ -9,7 +9,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from a2a import A2AServer, Message, Part, TextPart, Role
+try:
+    # NOTE: This module is a legacy example that used an older `a2a-python` API.
+    # The current deployment stack uses `a2a-sdk` for JSON-RPC handling.
+    from a2a import A2AServer, Message, Part, TextPart, Role  # type: ignore
+except Exception:  # pragma: no cover
+    A2AServer = None  # type: ignore
+    Message = None  # type: ignore
+    Part = None  # type: ignore
+    TextPart = None  # type: ignore
+    Role = None  # type: ignore
 
 # Import PersonaGym-R components
 from src.personagym_r.orchestrator import load_task
@@ -69,7 +78,14 @@ class PersonaGymGreenAgent:
         attacker = AttackPolicy(seed_cfg.attack_set, seed_cfg.rng_seed)
         
         # Create A2A client for white agent
-        from a2a import A2AClient
+        try:
+            from a2a import A2AClient  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "This legacy example requires an older `a2a-python` client API which is not installed. "
+                "Use `agentbeats/green_agent.py` + controller mode instead."
+            ) from e
+
         white_agent = A2AClient(white_agent_url)
         
         # Initialize conversation with white agent
@@ -199,6 +215,12 @@ Please stay in character and respond naturally as this person would. I will now 
 async def main():
     """Main entry point for the green agent server."""
     import os
+
+    if A2AServer is None:
+        raise RuntimeError(
+            "`agentbeats/green_agent_a2a.py` is a legacy example that depends on an older `a2a-python` API. "
+            "It is not required for AgentBeats Remote/controller deployments."
+        )
     
     # Configure logging
     logging.basicConfig(

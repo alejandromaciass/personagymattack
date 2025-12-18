@@ -2,6 +2,11 @@
 Test script for LocalModelAgent (local Hugging Face model).
 Run this script after installing transformers and torch.
 """
+import pytest
+
+# Manual demo script (requires transformers/torch). Not intended for pytest.
+pytest.skip("demo script; requires transformers/torch", allow_module_level=True)
+
 from src.personagym_r.baselines.local_model_agent import LocalModelAgent
 from src.personagym_r.api_schema import PersonaCard, Observation, LinguisticProfile, PersonalityTraits, KnowledgeBase, BehavioralPatterns
 

@@ -10,7 +10,7 @@ scikit-learn>=1.5
 
 # AgentBeats Integration
 earthshaker
-a2a-python
+a2a-sdk[http-server]>=0.3.12
 
 # Additional utilities
 pyyaml>=6.0

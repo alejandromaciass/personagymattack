@@ -28,6 +28,26 @@ from pydantic import BaseModel, Field
 
 import uvicorn
 
+# A2A JSON-RPC server support (assessment runner posts JSON-RPC to the agent base URL)
+from a2a.server.apps.jsonrpc.fastapi_app import A2AFastAPIApplication
+from a2a.utils.errors import ServerError
+from a2a.server.request_handlers.request_handler import RequestHandler as A2ARequestHandler
+from a2a.types import (
+    AgentCard as A2AAgentCard,
+    DeleteTaskPushNotificationConfigParams,
+    GetTaskPushNotificationConfigParams,
+    ListTaskPushNotificationConfigParams,
+    Message,
+    MessageSendParams,
+    Role,
+    Task,
+    TaskIdParams,
+    TaskPushNotificationConfig,
+    TaskQueryParams,
+    TextPart,
+    UnsupportedOperationError,
+)
+
 
 logger = logging.getLogger("PersonaGymAttackWhiteAgent")
 
@@ -220,6 +240,152 @@ app.add_middleware(
 white_agent = WhiteAgent()
 
 
+def _a2a_server_agent_card() -> A2AAgentCard:
+    return A2AAgentCard(
+        capabilities={},
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+        description="A2A white/participant agent for PersonaGymAttack demos",
+        name="PersonaGymAttack White Agent",
+        preferred_transport="JSONRPC",
+        protocol_version="0.3.0",
+        skills=[
+            {
+                "description": "Handles user requests and completes tasks",
+                "examples": [],
+                "id": "task_fulfillment",
+                "name": "Task Fulfillment",
+                "tags": ["general"],
+            }
+        ],
+        url=_public_base_url(None),
+        version="1.0.0",
+    )
+
+
+class _WhiteJSONRPCHandler(A2ARequestHandler):
+    def __init__(self) -> None:
+        # Track persona assignment per context_id for basic continuity.
+        self._persona_by_context: Dict[str, str] = {}
+
+    async def on_message_send(
+        self,
+        params: MessageSendParams,
+        context=None,
+    ) -> Task | Message:
+        text_parts: list[str] = []
+        for part in getattr(params.message, "parts", []) or []:
+            root = getattr(part, "root", part)
+            if hasattr(root, "text"):
+                try:
+                    text_parts.append(str(getattr(root, "text")))
+                except Exception:
+                    continue
+        incoming_text = " ".join([t for t in text_parts if t]).strip()
+
+        context_id = getattr(params.message, "context_id", None) or ""
+        if not isinstance(context_id, str):
+            context_id = ""
+
+        # Heuristic: if the agent sends a long persona assignment, store a name.
+        if params.message.role == Role.agent and incoming_text:
+            persona_name: str | None = None
+            for line in incoming_text.splitlines():
+                if "Name:" in line:
+                    # Handle formats like "**Name:** Alice" or "Name: Alice"
+                    tail = line.split("Name:", 1)[-1].strip()
+                    tail = tail.strip("*").strip()
+                    if tail:
+                        persona_name = tail
+                        break
+            if persona_name and context_id:
+                self._persona_by_context[context_id] = persona_name
+
+            ack = "Persona received. Ready."
+            return Message(
+                message_id=f"white-ack-{datetime.utcnow().timestamp()}",
+                role=Role.agent,
+                parts=[TextPart(text=ack)],
+            )
+
+        persona_prefix = ""
+        if context_id and context_id in self._persona_by_context:
+            persona_prefix = f"[{self._persona_by_context[context_id]}] "
+
+        response_text = f"{persona_prefix}I received: {incoming_text or '(no user message)'}"
+        return Message(
+            message_id=f"white-{datetime.utcnow().timestamp()}",
+            role=Role.agent,
+            parts=[TextPart(text=response_text)],
+        )
+
+    async def on_get_task(
+        self,
+        params: TaskQueryParams,
+        context=None,
+    ) -> Task | None:
+        return None
+
+    async def on_cancel_task(
+        self,
+        params: TaskIdParams,
+        context=None,
+    ) -> Task | None:
+        return None
+
+    async def on_set_task_push_notification_config(
+        self,
+        params: TaskPushNotificationConfig,
+        context=None,
+    ) -> TaskPushNotificationConfig:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_message_send_stream(
+        self,
+        params: MessageSendParams,
+        context=None,
+    ):
+        raise ServerError(error=UnsupportedOperationError())
+        if False:  # pragma: no cover
+            yield
+
+    async def on_resubscribe_to_task(
+        self,
+        params: TaskIdParams,
+        context=None,
+    ):
+        raise ServerError(error=UnsupportedOperationError())
+        if False:  # pragma: no cover
+            yield
+
+    async def on_get_task_push_notification_config(
+        self,
+        params: TaskIdParams | GetTaskPushNotificationConfigParams,
+        context=None,
+    ) -> TaskPushNotificationConfig:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_list_task_push_notification_config(
+        self,
+        params: ListTaskPushNotificationConfigParams,
+        context=None,
+    ) -> list[TaskPushNotificationConfig]:
+        raise ServerError(error=UnsupportedOperationError())
+
+    async def on_delete_task_push_notification_config(
+        self,
+        params: DeleteTaskPushNotificationConfigParams,
+        context=None,
+    ) -> None:
+        raise ServerError(error=UnsupportedOperationError())
+
+
+_a2a_jsonrpc_app = A2AFastAPIApplication(
+    agent_card=_a2a_server_agent_card(),
+    http_handler=_WhiteJSONRPCHandler(),
+)
+
+
 @app.get("/")
 async def root() -> Dict[str, Any]:
     """Root endpoint with quick links.
@@ -236,6 +402,16 @@ async def root() -> Dict[str, Any]:
         "documentation": "/docs",
         "api_info": "/api",
     }
+
+
+# Register A2A JSON-RPC POST / on the existing FastAPI app.
+# Use a non-conflicting agent_card_url since we already serve the public card at
+# `/.well-known/agent-card.json`.
+_a2a_jsonrpc_app.add_routes_to_app(
+    app,
+    agent_card_url="/__a2a/agent-card.json",
+    rpc_url="/",
+)
 
 
 @app.get("/api")

@@ -1,6 +1,11 @@
 """
 Test script for LocalModelAgent with all three personas.
 """
+import pytest
+
+# Manual demo script (requires optional local-model deps). Not intended for pytest.
+pytest.skip("demo script; requires optional local-model dependencies", allow_module_level=True)
+
 from src.personagym_r.baselines.local_model_agent import LocalModelAgent
 from src.personagym_r.api_schema import PersonaCard, Observation
 import json
