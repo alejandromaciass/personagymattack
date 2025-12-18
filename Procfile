@@ -1,1 +1,1 @@
-web: bash start_controller_railway.sh
+web: bash start_railway.sh
