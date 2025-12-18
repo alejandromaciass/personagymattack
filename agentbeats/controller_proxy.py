@@ -47,6 +47,15 @@ def _controller_base_url() -> str:
     return f"http://{host}:{port}"
 
 
+def _public_origin(request: Request) -> str:
+    """Best-effort public origin (scheme://host) from forwarded headers."""
+    public_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    public_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    scheme = (public_proto or "https").split(",")[0].strip()
+    host = (public_host or "").split(",")[0].strip() or request.url.netloc
+    return f"{scheme}://{host}"
+
+
 def _filter_headers(headers: Iterable[tuple[str, str]]) -> dict[str, str]:
     out: dict[str, str] = {}
     for k, v in headers:
@@ -257,7 +266,22 @@ async def proxy_to_agent_safe(request: Request, agent_id: str, rest: str = "") -
             return Response(status_code=503, content=b"No agents available")
         combined_rest = f"{agent_id}/{rest}".strip("/") if rest else agent_id.strip("/")
         rewritten = f"to_agent/{first}/{combined_rest}" if combined_rest else f"to_agent/{first}"
-        return await proxy_all(request, rewritten)
+        resp = await proxy_all(request, rewritten)
+
+        # If this was an agent-card probe under /to_agent (missing id), rewrite the
+        # returned card's `url` so strict validators accept it.
+        if combined_rest.endswith(".well-known/agent-card.json") and resp.status_code < 400:
+            card_json = _safe_json_bytes_load(resp.body)
+            if isinstance(card_json, dict):
+                card_json["url"] = f"{_public_origin(request)}/to_agent"
+                return Response(
+                    status_code=resp.status_code,
+                    content=json.dumps(card_json).encode("utf-8"),
+                    headers={**dict(resp.headers), "cache-control": "no-store"},
+                    media_type="application/json",
+                )
+
+        return resp
 
     try:
         known = await _is_known_agent(agent_id)
@@ -315,17 +339,19 @@ async def root_agent_card(request: Request) -> Response:
         )
         card_resp.raise_for_status()
 
-        # Rewrite the card's public URL if it points at an internal host.
+        # Build a controller-root shim card.
         try:
             card_json: dict[str, Any] = card_resp.json()
-            card_url = card_json.get("url")
-            if isinstance(card_url, str) and public_host:
-                parsed = urlparse(card_url)
-                internal_hosts = {"0.0.0.0", "127.0.0.1", "localhost"}
-                if (parsed.hostname or "").lower() in internal_hosts:
-                    scheme = public_proto or "https"
-                    rebuilt = parsed._replace(scheme=scheme, netloc=public_host)
-                    card_json["url"] = urlunparse(rebuilt)
+            # Set url to the public controller origin (matches what users submit).
+            controller_origin = _public_origin(request)
+            card_json["url"] = controller_origin
+
+            # Prefix endpoints so url + endpoint still resolves.
+            endpoints = card_json.get("endpoints")
+            if isinstance(endpoints, dict):
+                for k, v in list(endpoints.items()):
+                    if isinstance(v, str) and v.startswith("/") and not v.startswith("/to_agent/"):
+                        endpoints[k] = f"/to_agent/{agent_id}{v}"
             content = json.dumps(card_json).encode("utf-8")
         except Exception:
             content = card_resp.content
@@ -356,6 +382,10 @@ async def proxy_all(request: Request, full_path: str) -> Response:
     """Generic reverse proxy to the internal controller."""
     base = _controller_base_url()
 
+    # Track whether the request was a missing-id /to_agent probe so we can rewrite
+    # the returned agent card's `url` for strict validators.
+    missing_to_agent_base = None
+
     # Some checkers have been observed issuing paths with a missing agent id, e.g.
     # /to_agent//.well-known/agent-card.json or /to_agent/.well-known/agent-card.json.
     # Rewrite these to the first discovered agent.
@@ -368,6 +398,7 @@ async def proxy_all(request: Request, full_path: str) -> Response:
         remainder = full_path.removeprefix("to_agent/")
         first_segment = remainder.split("/", 1)[0]
         if (first_segment == "") or (not _looks_like_agent_id(first_segment)):
+            missing_to_agent_base = f"{_public_origin(request)}/to_agent"
             agent_id = await _first_agent_id()
             if not agent_id:
                 return Response(status_code=503, content=b"No agents available")
@@ -403,6 +434,21 @@ async def proxy_all(request: Request, full_path: str) -> Response:
         )
 
         content = b"" if request.method.upper() == "HEAD" else upstream.content
+
+        # If caller probed the agent card under /to_agent with a missing id,
+        # rewrite card.url to /to_agent (not /to_agent/<id>). Endpoints remain
+        # /a2a/* so url + endpoint stays under /to_agent/*.
+        if (
+            missing_to_agent_base
+            and request.method.upper() != "HEAD"
+            and request.url.path.endswith(".well-known/agent-card.json")
+            and upstream.status_code < 400
+            and (upstream.headers.get("content-type", "").startswith("application/json"))
+        ):
+            card_json = _safe_json_bytes_load(upstream.content)
+            if isinstance(card_json, dict):
+                card_json["url"] = missing_to_agent_base
+                content = json.dumps(card_json).encode("utf-8")
 
         return Response(
             status_code=upstream.status_code,
