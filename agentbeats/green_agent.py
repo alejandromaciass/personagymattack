@@ -41,6 +41,38 @@ class AgentCard(BaseModel):
     url: str = ""
 
 
+def _tau_style_agent_card(request: Request) -> Dict[str, Any]:
+    """AgentBeats/A2A-client compatible agent card.
+
+    The assessment runner uses `a2a.client.card_resolver.AgentCard` which
+    expects a tau-style card shape (camelCase keys, capabilities as a dict,
+    required defaultInputModes/defaultOutputModes/skills).
+
+    This is separate from our internal A2A-1.0 fields exposed on `/a2a/*`.
+    """
+    public_url = _public_base_url(request)
+    return {
+        "capabilities": {},
+        "defaultInputModes": ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        "description": "Adversarial persona adherence benchmark for AI agents",
+        "name": "PersonaGym-R Green Agent",
+        "preferredTransport": "JSONRPC",
+        "protocolVersion": "0.3.0",
+        "skills": [
+            {
+                "description": "Runs adversarial persona adherence assessments",
+                "examples": [],
+                "id": "persona_assessment",
+                "name": "Persona Assessment",
+                "tags": ["persona-testing", "adversarial-evaluation", "safety"],
+            }
+        ],
+        "url": public_url,
+        "version": "1.0.0",
+    }
+
+
 def _public_base_url(request: Request | None = None) -> str:
     """Best-effort public base URL.
 
@@ -570,7 +602,6 @@ async def get_agent_card_standard(request: Request):
     """Standard AgentBeats agent card endpoint with detailed logging."""
     import sys
     from datetime import datetime
-    card = green_agent.get_agent_card()
     public_url = _public_base_url(request)
     # Log request details for debugging
     print("\n=== AGENT CARD ENDPOINT HIT ===", file=sys.stderr)
@@ -583,46 +614,8 @@ async def get_agent_card_standard(request: Request):
     except Exception as e:
         print(f"(Could not read body: {e})", file=sys.stderr)
     print("=== END AGENT CARD LOG ===\n", file=sys.stderr)
-    return {
-        "name": card.name,
-        "version": card.version,
-        "description": card.description,
-        "capabilities": card.capabilities,
-        "agent_type": card.agent_type,
-        "protocol_version": card.protocol_version,
-        "url": public_url,
-        "endpoints": {
-            "agent_card": "/a2a/card",
-            "list_tasks": "/a2a/tasks",
-            "accept_task": "/a2a/task", 
-            "run_assessment": "/a2a/run",
-            "health_check": "/health",
-            "launcher_start": "/launcher/start",
-            "launcher_stop": "/launcher/stop", 
-            "launcher_status": "/launcher/status"
-        },
-        "contact": {
-            "repository": "https://github.com/alejandromaciass/personagymattack",
-            "maintainer": "PersonaGym-R Team"
-        },
-        "requirements": {
-            "min_agents": 1,
-            "max_agents": 10,
-            "supported_protocols": ["A2A-1.0"],
-            "resource_requirements": {
-                "memory_mb": 512,
-                "cpu_cores": 2,
-                "gpu": False
-            }
-        },
-        "metadata": {
-            "created": "2025-11-18",
-            "tags": ["persona-testing", "adversarial-evaluation", "safety", "benchmark"],
-            "difficulty": "medium-hard",
-            "estimated_duration_minutes": 5,
-            "launcher_url": f"{public_url}/launcher/start"
-        }
-    }
+    # Return the tau-style card the assessment runner expects.
+    return _tau_style_agent_card(request)
 
 
 @app.head("/.well-known/agent-card.json")
