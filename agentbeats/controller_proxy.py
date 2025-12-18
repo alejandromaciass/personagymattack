@@ -89,6 +89,20 @@ def _safe_response_json(resp: httpx.Response) -> Any | None:
         return _safe_json_bytes_load(resp.content)
 
 
+async def _first_agent_id() -> str | None:
+    """Return the first discovered agent id, if any."""
+    base = _controller_base_url()
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+        resp = await client.get(f"{base}/agents")
+        if resp.status_code >= 400:
+            return None
+        agents = _safe_response_json(resp)
+        if not isinstance(agents, dict) or not agents:
+            return None
+        agent_id = next(iter(agents.keys()))
+        return agent_id if isinstance(agent_id, str) and agent_id else None
+
+
 app = FastAPI(
     title="AgentBeats Controller Proxy",
     version="1.0.0",
@@ -320,6 +334,23 @@ async def root_agent_card_head() -> Response:
 async def proxy_all(request: Request, full_path: str) -> Response:
     """Generic reverse proxy to the internal controller."""
     base = _controller_base_url()
+
+    # Some checkers have been observed issuing paths like /to_agent//... (empty id).
+    # That would otherwise 404, even though a valid agent exists. Treat it as the
+    # first discovered agent.
+    if full_path.startswith("to_agent//"):
+        rest = full_path.removeprefix("to_agent//")
+        agent_id = await _first_agent_id()
+        if not agent_id:
+            return Response(status_code=503, content=b"No agents available")
+        full_path = f"to_agent/{agent_id}/{rest}" if rest else f"to_agent/{agent_id}"
+
+    if full_path in {"to_agent", "to_agent/"}:
+        agent_id = await _first_agent_id()
+        if not agent_id:
+            return Response(status_code=503, content=b"No agents available")
+        full_path = f"to_agent/{agent_id}"
+
     url = f"{base}/{full_path}" if full_path else f"{base}/"
 
     body = await request.body()
